@@ -1,7 +1,6 @@
 package com.flower.utilities.messagepassing;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
+import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
@@ -13,10 +12,10 @@ abstract class AbstractMessageQueue<M> {
     protected final AtomicReference<LinkedListenerNode> queueListeners;
 
     static class LinkedListenerNode {
-        private final SettableFuture<Void> future;
+        private final CompletableFuture<Void> future;
         @Nullable private final LinkedListenerNode next;
 
-        LinkedListenerNode(SettableFuture<Void> future, @Nullable LinkedListenerNode next) {
+        LinkedListenerNode(CompletableFuture<Void> future, @Nullable LinkedListenerNode next) {
             this.future = future;
             this.next = next;
         }
@@ -38,8 +37,8 @@ abstract class AbstractMessageQueue<M> {
     /**
      * Set a listener to be notified when new messages are added
      */
-    public ListenableFuture<Void> getMessageListener() {
-        SettableFuture<Void> notificationFuture = SettableFuture.create();
+    public CompletableFuture<Void> getMessageListener() {
+        CompletableFuture<Void> notificationFuture = new CompletableFuture<>();
         while (true) {
             LinkedListenerNode oldList = queueListeners.get();
             LinkedListenerNode newList = new LinkedListenerNode(notificationFuture, oldList);
@@ -75,7 +74,7 @@ abstract class AbstractMessageQueue<M> {
             if (queueListeners.compareAndSet(oldList, null)) {
                 LinkedListenerNode cursor = oldList;
                 while (cursor != null) {
-                    cursor.future.set(null);
+                    cursor.future.complete(null);
                     cursor = cursor.next;
                 }
                 return;

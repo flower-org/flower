@@ -472,9 +472,11 @@ public class FuturesToolTest {
     FuturesTool.assignSettableFuture(source, target, executor);
     assertFalse(target.isDone());
     source.complete(1);
-    assertEquals(1, getValue(target));
+    // Wait on the dependent, not on target: a thread blocked in target.get() may itself run target's
+    // dependents, which would make the thread check racy.
     getValue(observed);
     assertEquals(EXECUTOR_THREAD, completedOn.get());
+    assertEquals(1, getValue(target));
   }
 
   @Test

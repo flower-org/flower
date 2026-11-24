@@ -1,6 +1,6 @@
 package com.flower.utilities.messagepassing;
 
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.Nullable;
 
@@ -9,5 +9,5 @@ public interface SimpleMessageSource<M> {
 
     @Nullable M peek();
 
-    ListenableFuture<Void> getMessageListener();
+    CompletableFuture<Void> getMessageListener();
 }
