@@ -38,38 +38,6 @@ public class EventProfileForFlowTypeCallContext {
     return eventFunctionsByType.get(eventType);
   }
 
-  /*public ListenableFuture<Void> runEvents(
-      Object eventProfileState,
-      Object flowState,
-      EventParametersProvider eventParametersProvider,
-      EventType eventType,
-      @Nullable Transition transition) {
-    EventFunctions functionsForEventType = getFunctionsForEventType(eventType);
-
-    ObjectStateAccess eventProfileStateAccess =
-        new ObjectStateAccess(eventProfileState, functionsForEventType.eventProfileStateAccessConfig);
-    ObjectStateAccess flowStateAccess = new ObjectStateAccess(flowState, functionsForEventType.flowStateAccessConfig);
-
-    //List<EventFunction> eventFunctionList = eventFunctionsByType.get(eventType);
-    List<EventFunction> eventFunctionList = functionsForEventType.functions;
-
-    List<ListenableFuture<Void>> futures = new ArrayList<>();
-    if (eventFunctionList != null)
-      for (EventFunction eventFunction : eventFunctionList) {
-        futures.add(
-            invokeEventFunction(
-                eventProfileStateAccess,
-                flowStateAccess,
-                eventFunction.functionCallContext,
-                eventParametersProvider, eventType, transition));
-      }
-
-    // TODO: implement proper order of calling in EventCallContextForFlowType
-    // !!! not here, in EventCallContextForFlowType
-    return Futures.whenAllComplete(futures)
-        .callAsync(Futures::immediateVoidFuture, MoreExecutors.directExecutor());
-  }*/
-
   public String getEventProfileName() {
     return eventProfileName;
   }

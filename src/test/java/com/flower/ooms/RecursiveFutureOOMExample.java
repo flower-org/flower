@@ -1,31 +1,34 @@
 package com.flower.ooms;
 
 import com.flower.executor.TaskCheckingExecutor;
-import com.google.common.util.concurrent.*;
-
+import com.flower.utilities.FuturesTool;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class RecursiveFutureOOMExample {
-  static ListenableFuture<Integer> recursion(
-      ListenableFuture<Integer> previous, Executor executor) {
-    return Futures.transformAsync(
+  static CompletableFuture<Integer> recursion(
+      CompletableFuture<Integer> previous, Executor executor) {
+    return FuturesTool.transformAsync(
         previous,
         i -> {
           System.out.println(i);
           if (i == Integer.MAX_VALUE) {
-            return Futures.immediateFuture(i);
+            return CompletableFuture.completedFuture(i);
           } else {
-            return recursion(Futures.immediateFuture(i + 1), executor);
+            return recursion(CompletableFuture.completedFuture(i + 1), executor);
           }
         },
         executor);
   }
 
   static void recursionDecoupled(
-      ListenableFuture<Integer> previous, Executor executor, SettableFuture<Integer> set) {
-    Futures.whenAllComplete(previous)
-        .run(
+      CompletableFuture<Integer> previous, Executor executor, CompletableFuture<Integer> set) {
+    CompletableFuture<Void> unused =
+        FuturesTool.whenAllCompleteRun(
+            List.of(previous),
             () -> {
               Integer i;
               try {
@@ -36,26 +39,26 @@ public class RecursiveFutureOOMExample {
               }
 
               if (i == Integer.MAX_VALUE) {
-                set.set(i);
+                set.complete(i);
               } else {
-                recursionDecoupled(Futures.immediateFuture(i + 1), executor, set);
+                recursionDecoupled(CompletableFuture.completedFuture(i + 1), executor, set);
               }
             },
             executor);
   }
 
   public static void main(String[] args) throws ExecutionException, InterruptedException {
-    ListeningScheduledExecutorService executor =
-        MoreExecutors.listeningDecorator(TaskCheckingExecutor.builder().corePoolSize(1).build());
+    ScheduledExecutorService executor = TaskCheckingExecutor.builder().corePoolSize(1).build();
 
     // TODO: THIS OOMs (recursion)
     // uncomment for testing
-    //        ListenableFuture<Integer> iFuture = recursion(Futures.immediateFuture(1), executor);
+    //        CompletableFuture<Integer> iFuture =
+    //            recursion(CompletableFuture.completedFuture(1), executor);
 
     // TODO: THIS doesn't OOM (recursion)
     // uncomment for testing
-    SettableFuture<Integer> iFuture = SettableFuture.create();
-    recursionDecoupled(Futures.immediateFuture(1), executor, iFuture);
+    CompletableFuture<Integer> iFuture = new CompletableFuture<>();
+    recursionDecoupled(CompletableFuture.completedFuture(1), executor, iFuture);
 
     System.out.println(iFuture.get());
   }
