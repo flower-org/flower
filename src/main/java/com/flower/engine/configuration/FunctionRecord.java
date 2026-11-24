@@ -241,8 +241,8 @@ public class FunctionRecord {
       if (!prm.getType().equals(Executor.class)) {
         throw new AnnotationFormatError(
             String.format(
-                "Function %s. Parameter %s annotated as @Out should be of type %s",
-                physicalFunctionName, prm.getName(), OutPrm.class.getCanonicalName()));
+                "Function %s. Parameter %s annotated as @Exec should be of type %s",
+                physicalFunctionName, prm.getName(), Executor.class.getCanonicalName()));
       }
       return new FunctionParameterRecord(
           executorAnnotation, nullableAnnotation, prm, genericParameterType, flowType);

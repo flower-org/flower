@@ -115,7 +115,7 @@ public class FunctionParameterRecord {
     this(
         prm,
         genericParameterType,
-        FunctionParameterType.STEP_INFO,
+        FunctionParameterType.EXEC,
         execAnnotation.name(),
         flowType,
         null,

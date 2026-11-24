@@ -523,6 +523,7 @@ public class FunctionCallUtil {
           break;
         case EXEC:
           parameters.add(callParameter.getSpecialObject());
+          break;
         case FLOW_INFO:
           parameters.add(eventParametersProvider.getFlowInfo());
           break;

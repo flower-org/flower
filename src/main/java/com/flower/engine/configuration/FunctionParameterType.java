@@ -7,6 +7,7 @@ public enum FunctionParameterType {
   IN,
   OUT,
   IN_OUT,
+  EXEC,
 
   IN_FROM_FLOW,
   OUT_FROM_FLOW,
