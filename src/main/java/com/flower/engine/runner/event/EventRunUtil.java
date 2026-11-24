@@ -76,9 +76,18 @@ public class EventRunUtil {
             scheduler);
 
     // 2) + 3) Per EventProfile: BLOCKING functions in parallel, then SYNCHRONIZED sequentially.
-    // Different EventProfiles proceed independently. SYNCHRONIZED functions only change their own
-    // EventProfile's state, so if several EventProfiles have them, they're run on the scheduler to
-    // let EventProfiles progress in parallel; otherwise they're run without a thread hop.
+    // Different EventProfiles proceed independently (SYNCHRONIZED functions only change their own
+    // EventProfile's state, so that's safe).
+    //
+    // Which thread SYNCHRONIZED functions are called on:
+    // - more than one EventProfile has SYNCHRONIZED functions: each call is submitted to the
+    //   scheduler. Otherwise a synchronous function of one EventProfile would occupy the current
+    //   thread and hold back the other EventProfiles, i.e. they wouldn't run in parallel.
+    // - at most one EventProfile has them: there's nothing to run in parallel with, so
+    //   synchronizedExecutor is null and each function is called directly on the thread that
+    //   completes the previous stage (no task submission / thread hop).
+    // Either way, functions of a single EventProfile run sequentially, and the returned future
+    // waits for all of them.
     @Nullable Executor synchronizedExecutor = profilesWithSynchronized > 1 ? scheduler : null;
     List<CompletableFuture<Void>> profileFutures = new ArrayList<>();
     for (int i = 0; i < blockingByProfile.size(); i++) {
