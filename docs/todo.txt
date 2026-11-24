@@ -1,0 +1,44 @@
+Flower - TODO
+
+Open
+- Timeouts on Functions: fail a Function that runs too long, catchable in its Transit Function (@InRetOrException).
+- Validations missing in Flower.initialize():
+    - Calls (@StepCall, @TransitCall, @StepAndTransitCall, @EventCall) must return void and have no body;
+    - Event Function bound to no EventTypes;
+    - unreachable Steps, unused Transit Functions and Flow-local Event Functions;
+    - duplicate transit override of the same parameter;
+    - EventProfile without an accessible default constructor (currently fails only when a Flow is created);
+    - warn about Flow state fields of special types (Transition, FlowFactoryPrm, FlowEventBus, ...).
+- Missing tests: final state field used as @Out / @InOut (check exists); wrong parameter annotation types on Calls.
+- Step references are strings, validated only at initialize(). Ideas, cheapest first:
+    - "Did you mean ...?" for unknown Step / Transit names;
+    - test helper to register all Flows in a package and initialize();
+    - mark the first Step on its method (e.g. @SimpleStepFunction(first = true)) instead of @FlowType(firstStep);
+    - annotation processor: compile-time validation, or generated name constants (MyFlow_.STEP);
+    - IDE plugin for navigation / rename of Step names.
+- Refactor In / Out / InOut / InRet parameter creators (~1550 lines): one shared skeleton parameterized by direction
+    (read / write) and source (state field / step return value). Readability only; do it before changing type rules.
+- Visualization: add parameters, child Flows and Events to the generated mermaid diagrams.
+
+Persistence (as an extension, never in the core)
+- Core extension points still missing:
+    - state serializers (Flower.override*StateSerializer are stubs);
+    - resuming a Flow at a given Step with restored state;
+    - delayed Transitions / timers that the persistence layer can take over;
+    - re-attaching child Flows after restore by FlowId instead of in-memory futures.
+- Already there: FINALIZER Events as checkpoints, explicit state changed only via declared parameters, FlowIds,
+    @FlowRepo lookups by id, pluggable scheduler.
+
+Later / maybe
+- Cross-server child Flows; remote Flow creation.
+- Tracing: FlowId as trace id, across parent and child Flows.
+- Progress reporting via Flow state (e.g. to a UI).
+- Codegen instead of reflection.
+
+Decisions (don't revisit without a good reason)
+- Event Functions can't write Flow state (@OutFromFlow / @InOutFromFlow were removed): EventProfiles stay
+    Flow-agnostic, and the null-safety check stays tractable. Flow state is read-only via @InFromFlow.
+- FINALIZER is the only Event concurrency whose exception fails the Flow; other Event exceptions are reported to the
+    EventExceptionHandler.
+- State is updated partially when a Function fails (see README "Note on Flow state updates").
+- Step references stay strings for now (see above).
