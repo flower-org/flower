@@ -17,6 +17,7 @@ import com.flower.anno.params.transit.InRet;
 import com.flower.anno.params.transit.InRetOrException;
 import com.flower.anno.params.transit.StepRef;
 import com.flower.anno.params.transit.Terminal;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import javax.annotation.Nullable;
@@ -46,6 +47,9 @@ public class FunctionParameterRecord {
 
   @Nullable public final Nullable nullableAnnotation;
 
+  /** The Flower parameter annotation of this parameter (e.g. @In, @StepRef). */
+  public final Annotation annotation;
+
   @Nullable public final Class<?> flowType;
   public final FunctionParameterType type;
   public final String name;
@@ -54,6 +58,7 @@ public class FunctionParameterRecord {
   public final Type genericParameterType;
 
   FunctionParameterRecord(
+      Annotation annotation,
       Parameter prm,
       Type genericParameterType,
       FunctionParameterType type,
@@ -61,6 +66,7 @@ public class FunctionParameterRecord {
       @Nullable Class<?> flowType,
       @Nullable String fieldName,
       @Nullable Nullable nullableAnnotation) {
+    this.annotation = annotation;
     this.flowType = flowType;
     this.prm = prm;
     this.genericParameterType = genericParameterType;

@@ -107,6 +107,7 @@ final class ParameterAnnotationSpec<A extends Annotation> {
       @Nullable Class<?> flowType) {
     FunctionParameterRecord record =
         new FunctionParameterRecord(
+            annotation,
             prm,
             genericParameterType,
             parameterType,

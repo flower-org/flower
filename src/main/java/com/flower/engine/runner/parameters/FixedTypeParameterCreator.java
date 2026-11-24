@@ -8,7 +8,6 @@ import com.flower.engine.function.FunctionCallParameter;
 import com.flower.engine.function.ParameterType;
 import com.flower.engine.runner.state.StateAccessConfig;
 import com.flower.engine.runner.step.InternalTransition;
-import com.flower.eventbus.FlowEventBus;
 import com.google.common.collect.ImmutableList;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -17,10 +16,23 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
- * Creates @EventBus parameters. Unlike other special parameters, there's no special object: each
- * Flow instance has its own FlowEventBus, which is resolved when the function is called.
+ * Creates parameters of a fixed Java type that aren't bound to a state field, e.g. {@code @Exec},
+ * {@code @EventBus}, {@code @FlowInfo}: the value is either a fixed special object, or provided by
+ * the engine at call time.
  */
-public class EventBusParameterCreator extends ParameterCreator {
+public class FixedTypeParameterCreator extends ParameterCreator {
+  final ParameterType functionParameterType;
+  final Type parameterType;
+  /** Value injected for every call (e.g. Flower's executor); null if provided at call time. */
+  @Nullable final Object specialObject;
+
+  FixedTypeParameterCreator(
+      ParameterType functionParameterType, Type parameterType, @Nullable Object specialObject) {
+    this.functionParameterType = functionParameterType;
+    this.parameterType = parameterType;
+    this.specialObject = specialObject;
+  }
+
   @Override
   public ParameterCreationResult createParameter(
       FlowTypeRecord flowTypeRecord,
@@ -45,7 +57,7 @@ public class EventBusParameterCreator extends ParameterCreator {
       throw new IllegalStateException(
           String.format(
               "Function parameter of type [%s] can't be overridden by transit parameter. Flow: [%s] Function/Call: [%s] Parameter: [%s]",
-              ParameterType.EVENT_BUS,
+              functionParameterType,
               flowTypeRecord.flowTypeName,
               functionOrCallName,
               parameterName));
@@ -55,7 +67,7 @@ public class EventBusParameterCreator extends ParameterCreator {
         baseParameter,
         parameterOverrideFromCall,
         null,
-        FlowEventBus.class,
+        parameterType,
         flowTypeRecord.flowTypeName,
         functionOrCallName);
 
@@ -64,9 +76,9 @@ public class EventBusParameterCreator extends ParameterCreator {
             null,
             null,
             parameterName,
-            ParameterType.EVENT_BUS,
-            FlowEventBus.class,
-            null,
+            functionParameterType,
+            parameterType,
+            specialObject,
             baseParameter.nullableAnnotation != null,
             false),
         ImmutableList.of());
