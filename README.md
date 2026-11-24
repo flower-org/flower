@@ -243,9 +243,9 @@ Similarly to [Flow and Function names](#flow_and_function_names), parameter name
 The following parameter annotations have other optional elements with default values:
 - **@In**, **@InFromFlow**: 
 	- from: from State field, defaults to Java parameter name;
-- **@Out**, **@OutFromFlow**: 
+- **@Out**: 
 	- to: to State field, defaults to Java parameter name;
-- **@InOut**, **@InOutFromFlow**: 
+- **@InOut**: 
 	- fromAndTo: from and to State field, defaults to Java parameter name;
 - **@StepRef**:
 	- stepName: name of a Step, defaults to Java parameter name.
@@ -253,7 +253,7 @@ The following parameter annotations have other optional elements with default va
 The idea of those defaults is to keep our code concise and clean: for instance, if we've already defined a name for Java method parameter, then if possible we would like to avoid redefining it in annotation elements, implicitly assuming the same name for some annotation properties. The only good reason to explicitly set those properties would be in situations when an annotation element must be assigned some other value. As practice shows, default values suffice in vast majority of cases.
 On top of that, when names of entities match - it makes referenced entities easier to find in the code.
 
-Parameter annotations `@InFromFlow`, `@OutFromFlow`, `@InOutFromFlow` will be discussed in section **TODO: ADD RE TO SECTION FOR EVENT PROFILES**.
+Parameter annotation `@InFromFlow` is used in Event Functions to read Flow state, see [Events and Event Concurrency](#events-and-event-concurrency).
 
 **TODO: IN / OUT / IN_OUT  ADD SECTION FOR TYPE COMPARISON? OR REFERENCE TO THAT SECTION?**
 

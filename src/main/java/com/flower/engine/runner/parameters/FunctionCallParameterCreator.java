@@ -117,7 +117,7 @@ public class FunctionCallParameterCreator {
     if (parameterCreator == null) {
       throw new IllegalStateException(
           String.format(
-              "Parameter must be annotated with one of [@In, @Out, @InOut, @Exec, @EventBus, @StepRef, @Terminal, @InRet, @InRetOrException, @FlowFactory, @FlowRepo, @InFromFlow, @OutFromFlow, @InOutFromFlow, @EventInfo, @FlowInfo, @RunningTimeStats, @StepInfo, @TransitionInfo, @FlowException]. Flow [%s] ParameterName [%s]",
+              "Parameter must be annotated with one of [@In, @Out, @InOut, @Exec, @EventBus, @StepRef, @Terminal, @InRet, @InRetOrException, @FlowFactory, @FlowRepo, @InFromFlow, @EventInfo, @FlowInfo, @StepInfo, @TransitionInfo, @FlowException]. Flow [%s] ParameterName [%s]",
               flowTypeRecord.flowTypeName, functionParameter.name));
     }
 

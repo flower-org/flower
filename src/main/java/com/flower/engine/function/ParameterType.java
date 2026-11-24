@@ -1,5 +1,12 @@
 package com.flower.engine.function;
 
+/**
+ * Type of a parameter as <b>injected</b> at call time, i.e. after Call and transit overrides are
+ * applied. Determines how {@code FunctionCallUtil} resolves the parameter's value.
+ *
+ * <p>Not to be confused with {@link com.flower.engine.configuration.FunctionParameterType}, which is
+ * the type as declared on a function.
+ */
 public enum ParameterType {
   // Common
   IN,

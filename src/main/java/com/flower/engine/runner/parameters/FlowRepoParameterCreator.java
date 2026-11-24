@@ -83,7 +83,7 @@ public class FlowRepoParameterCreator extends ParameterCreator {
       throw new IllegalStateException(
               String.format(
                   "Function parameter of type [%s] should be a parameterized type FlowRepoPrm<FLOW_TYPE>. Flow: [%s] Function/Call: [%s] Parameter: [%s]",
-                  ParameterType.CHILD_FLOW_FACTORY_REF,
+                  ParameterType.FLOW_REPO,
                   flowTypeRecord.flowTypeName,
                   functionOrCallName,
                   parameterName));
