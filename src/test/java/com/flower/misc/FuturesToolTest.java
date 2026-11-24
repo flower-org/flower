@@ -511,4 +511,290 @@ public class FuturesToolTest {
         next.thenAccept(v -> step(v, max, done));
     FuturesTool.assignSettableFuture(CompletableFuture.completedFuture(i + 1), next, executor);
   }
+
+  // ---------------- additional edge cases
+
+  @Test
+  void transform_inputFailure_doesNotCallFunction() throws Exception {
+    AtomicBoolean called = new AtomicBoolean(false);
+    CompletableFuture<String> result =
+        FuturesTool.transform(
+            CompletableFuture.<Integer>failedFuture(new MyTestException("x")),
+            i -> {
+              called.set(true);
+              return "v" + i;
+            },
+            executor);
+    assertEquals(MyTestException.class, failureOf(result).getClass());
+    assertFalse(called.get());
+  }
+
+  @Test
+  void transform_cancelledInput_failsWithCancellation() throws Exception {
+    CompletableFuture<Integer> input = new CompletableFuture<>();
+    input.cancel(false);
+    CompletableFuture<String> result = FuturesTool.transform(input, i -> "v" + i, executor);
+    assertTrue(failureOf(result) instanceof CancellationException);
+  }
+
+  @Test
+  void transformAsync_functionThrows_failsWithThatException() throws Exception {
+    MyTestException exception = new MyTestException("x");
+    CompletableFuture<Integer> result =
+        FuturesTool.transformAsync(
+            CompletableFuture.completedFuture(1),
+            i -> {
+              throw exception;
+            },
+            executor);
+    assertSame(exception, failureOf(result));
+  }
+
+  @Test
+  void transformAsync_inputFailure_propagatesUnwrappedWithoutCallingFunction() throws Exception {
+    MyTestException exception = new MyTestException("x");
+    AtomicBoolean called = new AtomicBoolean(false);
+    CompletableFuture<Integer> result =
+        FuturesTool.transformAsync(
+            FuturesToolTest.<Integer>dependentFailure(exception),
+            i -> {
+              called.set(true);
+              return CompletableFuture.completedFuture(i);
+            },
+            executor);
+    assertSame(exception, failureOf(result));
+    assertFalse(called.get());
+  }
+
+  @Test
+  void catching_executorRejects_failsWithRejection() throws Exception {
+    CompletableFuture<Integer> result =
+        FuturesTool.catching(
+            CompletableFuture.<Integer>failedFuture(new MyTestException("x")),
+            MyTestException.class,
+            e -> -1,
+            rejectingExecutor);
+    assertEquals(RejectedExecutionException.class, failureOf(result).getClass());
+  }
+
+  @Test
+  void catching_superclassType_catchesSubclass() throws Exception {
+    CompletableFuture<Integer> result =
+        FuturesTool.catching(
+            FuturesToolTest.<Integer>dependentFailure(new MyTestException("x")),
+            RuntimeException.class,
+            e -> -1,
+            executor);
+    assertEquals(-1, getValue(result));
+  }
+
+  @Test
+  void catchingAsync_success_passesValueThrough() throws Exception {
+    CompletableFuture<Integer> result =
+        FuturesTool.catchingAsync(
+            CompletableFuture.completedFuture(1),
+            MyTestException.class,
+            e -> CompletableFuture.completedFuture(-1),
+            executor);
+    assertEquals(1, getValue(result));
+  }
+
+  @Test
+  void catchingAsync_fallbackThrows_failsWithThatException() throws Exception {
+    OtherTestException fallbackException = new OtherTestException();
+    CompletableFuture<Integer> result =
+        FuturesTool.catchingAsync(
+            CompletableFuture.<Integer>failedFuture(new MyTestException("x")),
+            MyTestException.class,
+            e -> {
+              throw fallbackException;
+            },
+            executor);
+    assertSame(fallbackException, failureOf(result));
+  }
+
+  @Test
+  void catchingAsync_fallbackReturnsNull_failsWithNpe() throws Exception {
+    CompletableFuture<Integer> result =
+        FuturesTool.catchingAsync(
+            CompletableFuture.<Integer>failedFuture(new MyTestException("x")),
+            MyTestException.class,
+            e -> null,
+            executor);
+    assertEquals(NullPointerException.class, failureOf(result).getClass());
+  }
+
+  @Test
+  void catchingAsync_executorRejects_failsWithRejection() throws Exception {
+    CompletableFuture<Integer> result =
+        FuturesTool.catchingAsync(
+            CompletableFuture.<Integer>failedFuture(new MyTestException("x")),
+            MyTestException.class,
+            e -> CompletableFuture.completedFuture(-1),
+            rejectingExecutor);
+    assertEquals(RejectedExecutionException.class, failureOf(result).getClass());
+  }
+
+  @Test
+  void tryCatch_inputFailure_isCaughtByFallback() throws Exception {
+    MyTestException exception = new MyTestException("x");
+    AtomicReference<Throwable> caught = new AtomicReference<>();
+    CompletableFuture<String> result =
+        FuturesTool.tryCatch(
+            FuturesToolTest.<Integer>dependentFailure(exception),
+            i -> "v" + i,
+            MyTestException.class,
+            e -> {
+              caught.set(e);
+              return "fallback";
+            },
+            executor);
+    assertEquals("fallback", getValue(result));
+    assertSame(exception, caught.get());
+  }
+
+  @Test
+  void tryCatch_nonMatchingException_propagatesUnwrapped() throws Exception {
+    OtherTestException exception = new OtherTestException();
+    CompletableFuture<String> result =
+        FuturesTool.tryCatch(
+            CompletableFuture.completedFuture(1),
+            i -> {
+              throw exception;
+            },
+            MyTestException.class,
+            e -> "fallback",
+            executor);
+    assertSame(exception, failureOf(result));
+  }
+
+  @Test
+  void tryCatchAsync_nonMatchingException_propagatesUnwrapped() throws Exception {
+    OtherTestException exception = new OtherTestException();
+    CompletableFuture<String> result =
+        FuturesTool.tryCatchAsync(
+            CompletableFuture.completedFuture(1),
+            i -> dependentFailure(exception),
+            MyTestException.class,
+            e -> CompletableFuture.completedFuture("fallback"),
+            executor);
+    assertSame(exception, failureOf(result));
+  }
+
+  @Test
+  void whenAllComplete_iterable_waitsForCancelledAndFailed() throws Exception {
+    CompletableFuture<Integer> cancelled = new CompletableFuture<>();
+    CompletableFuture<Integer> pending = new CompletableFuture<>();
+    CompletableFuture<Void> all =
+        FuturesTool.whenAllComplete(
+            List.of(cancelled, dependentFailure(new MyTestException("x")), pending));
+
+    cancelled.cancel(false);
+    assertFalse(all.isDone());
+    pending.complete(1);
+    assertNull(getValue(all));
+  }
+
+  @Test
+  void whenAllCompleteCall_runsAfterFailedInputs() throws Exception {
+    CompletableFuture<Integer> failed = CompletableFuture.failedFuture(new MyTestException("x"));
+    CompletableFuture<String> result =
+        FuturesTool.whenAllCompleteCall(List.of(failed), () -> "combined", executor);
+    assertEquals("combined", getValue(result));
+  }
+
+  @Test
+  void whenAllCompleteCall_executorRejects_failsWithRejection() throws Exception {
+    CompletableFuture<String> result =
+        FuturesTool.whenAllCompleteCall(
+            List.of(CompletableFuture.completedFuture(1)), () -> "combined", rejectingExecutor);
+    assertEquals(RejectedExecutionException.class, failureOf(result).getClass());
+  }
+
+  @Test
+  void whenAllCompleteRun_runnableThrows_failsWithThatException() throws Exception {
+    MyTestException exception = new MyTestException("x");
+    CompletableFuture<Void> result =
+        FuturesTool.whenAllCompleteRun(
+            List.of(CompletableFuture.completedFuture(1)),
+            () -> {
+              throw exception;
+            },
+            executor);
+    assertSame(exception, failureOf(result));
+  }
+
+  @Test
+  void whenAnyComplete_completesOnExecutorThread() throws Exception {
+    CompletableFuture<Integer> f1 = new CompletableFuture<>();
+    CompletableFuture<Integer> any = FuturesTool.whenAnyComplete(List.of(f1), executor);
+    AtomicReference<String> completedOn = new AtomicReference<>();
+    CompletableFuture<Void> observed =
+        any.thenAccept(v -> completedOn.set(Thread.currentThread().getName()));
+
+    f1.complete(1);
+    getValue(observed);
+    assertEquals(EXECUTOR_THREAD, completedOn.get());
+  }
+
+  @Test
+  void whenAnyComplete_empty_neverCompletes() throws Exception {
+    CompletableFuture<Integer> any = FuturesTool.whenAnyComplete(List.of(), executor);
+    Thread.sleep(20);
+    assertFalse(any.isDone());
+  }
+
+  @Test
+  void whenAnyComplete_executorRejects_failsWithRejection() throws Exception {
+    CompletableFuture<Integer> any =
+        FuturesTool.whenAnyComplete(
+            List.of(CompletableFuture.completedFuture(1)), rejectingExecutor);
+    assertEquals(RejectedExecutionException.class, failureOf(any).getClass());
+  }
+
+  @Test
+  void whenAnyComplete_manyConcurrentInputs_completesOnceWithOneOfThem() throws Exception {
+    ExecutorService pool = Executors.newFixedThreadPool(8);
+    try {
+      List<CompletableFuture<Integer>> inputs = new java.util.ArrayList<>();
+      for (int i = 0; i < 100; i++) {
+        inputs.add(new CompletableFuture<>());
+      }
+      CompletableFuture<Integer> any = FuturesTool.whenAnyComplete(inputs, pool);
+      for (int i = 0; i < inputs.size(); i++) {
+        int value = i;
+        CompletableFuture<Integer> input = inputs.get(i);
+        pool.execute(() -> input.complete(value));
+      }
+      int result = getValue(any);
+      assertTrue(result >= 0 && result < 100);
+    } finally {
+      pool.shutdownNow();
+    }
+  }
+
+  @Test
+  void whenAnyCompleteIgnoreResult_completesOnSuccess() throws Exception {
+    CompletableFuture<Integer> f1 = new CompletableFuture<>();
+    CompletableFuture<Void> any = FuturesTool.whenAnyCompleteIgnoreResult(List.of(f1), executor);
+    f1.complete(1);
+    assertNull(getValue(any));
+  }
+
+  @Test
+  void whenAnyCompleteIgnoreResult_executorRejects_failsWithRejection() throws Exception {
+    CompletableFuture<Void> any =
+        FuturesTool.whenAnyCompleteIgnoreResult(
+            List.of(CompletableFuture.completedFuture(1)), rejectingExecutor);
+    assertEquals(RejectedExecutionException.class, failureOf(any).getClass());
+  }
+
+  @Test
+  void assignSettableFuture_cancelledSource_failsTargetWithCancellation() throws Exception {
+    CompletableFuture<Integer> source = new CompletableFuture<>();
+    CompletableFuture<Integer> target = new CompletableFuture<>();
+    FuturesTool.assignSettableFuture(source, target, executor);
+    source.cancel(false);
+    assertTrue(failureOf(target) instanceof CancellationException);
+  }
 }

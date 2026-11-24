@@ -297,6 +297,132 @@ public class FutureCombinerTest {
     assertEquals(num2, future2.get(5, TimeUnit.SECONDS));
   }
 
+  @Test
+  public void testChainedFutures_failedList_failsWithOriginalException() throws Exception {
+    MyTestException exception = new MyTestException(EXCEPTION_MESSAGE);
+    CompletableFuture<List<Integer>> list =
+        CompletableFuture.<List<Integer>>failedFuture(exception).thenApply(l -> l);
+
+    CompletableFuture<List<Integer>> result =
+        FutureCombiner.chainResults(CompletableFuture.completedFuture(num1), list);
+    assertSame(exception, failureOf(result));
+  }
+
+  @Test
+  public void testChainedFutures_ListWithList_failedList_failsWithOriginalException()
+      throws Exception {
+    MyTestException exception = new MyTestException(EXCEPTION_MESSAGE);
+    CompletableFuture<List<Integer>> list1 =
+        FutureCombiner.chainResults(CompletableFuture.completedFuture(num1));
+    CompletableFuture<List<Integer>> list2 =
+        CompletableFuture.<List<Integer>>failedFuture(exception).thenApply(l -> l);
+
+    assertSame(exception, failureOf(FutureCombiner.chainListResults(list1, list2)));
+    assertSame(exception, failureOf(FutureCombiner.chainListResults(list2, list1)));
+  }
+
+  @Test
+  public void testChainedFutures_ListWithList_waitsForBoth() throws Exception {
+    CompletableFuture<List<Integer>> list1 = new CompletableFuture<>();
+    CompletableFuture<List<Integer>> list2 = new CompletableFuture<>();
+
+    CompletableFuture<List<Integer>> result = FutureCombiner.chainListResults(list1, list2);
+    list1.complete(new ArrayList<>(List.of(num1)));
+    assertFalse(result.isDone());
+    list2.complete(new ArrayList<>(List.of(num2)));
+    assertEquals(ImmutableList.of(num2, num1), result.get(5, TimeUnit.SECONDS));
+  }
+
+  @Test
+  public void testChainedFutures_varArgsAllNull_shouldReturnEmptyList() throws Exception {
+    assertTrue(FutureCombiner.<Integer>chainListResults(null, null, null).get().isEmpty());
+  }
+
+  @Test
+  public void testChainedFutures_varArgs_waitsForAll() throws Exception {
+    CompletableFuture<List<Integer>> list1 = new CompletableFuture<>();
+    CompletableFuture<List<Integer>> list2 = new CompletableFuture<>();
+
+    CompletableFuture<List<Integer>> result = FutureCombiner.chainListResults(null, list1, list2);
+    list2.complete(List.of(num2));
+    assertFalse(result.isDone());
+    list1.complete(List.of(num1));
+    assertEquals(ImmutableList.of(num1, num2), result.get(5, TimeUnit.SECONDS));
+  }
+
+  @Test
+  public void testCollapseNestedFuture_outerFails_failsWithOriginalException() throws Exception {
+    MyTestException exception = new MyTestException(EXCEPTION_MESSAGE);
+    CompletableFuture<CompletableFuture<Integer>> outer =
+        CompletableFuture.<CompletableFuture<Integer>>failedFuture(exception).thenApply(f -> f);
+
+    assertSame(exception, failureOf(FutureCombiner.collapseNestedFuture(outer)));
+  }
+
+  @Test
+  public void testCollapseNestedFuture_innerFails_failsWithOriginalException() throws Exception {
+    MyTestException exception = new MyTestException(EXCEPTION_MESSAGE);
+    CompletableFuture<Integer> inner =
+        CompletableFuture.<Integer>failedFuture(exception).thenApply(i -> i);
+
+    assertSame(
+        exception,
+        failureOf(FutureCombiner.collapseNestedFuture(CompletableFuture.completedFuture(inner))));
+  }
+
+  @Test
+  public void testCollapseNestedFuture_innerNull_failsWithNpe() throws Exception {
+    CompletableFuture<Integer> collapsed =
+        FutureCombiner.collapseNestedFuture(CompletableFuture.completedFuture(null));
+    assertEquals(NullPointerException.class, failureOf(collapsed).getClass());
+  }
+
+  @Test
+  public void testDelayedExecutionAsync_callableReturnsNull_failsWithNpe() throws Exception {
+    CompletableFuture<Integer> future =
+        FutureCombiner.delayExecutionAsync(scheduler, 10, TimeUnit.MILLISECONDS, () -> null);
+    assertEquals(NullPointerException.class, failureOf(future).getClass());
+  }
+
+  @Test
+  public void testDelayedExecutionAsync_rejected_failsFuture() throws Exception {
+    scheduler.shutdownNow();
+    CompletableFuture<Integer> future =
+        FutureCombiner.delayExecutionAsync(
+            scheduler,
+            10,
+            TimeUnit.MILLISECONDS,
+            () -> CompletableFuture.completedFuture(func(num1)));
+
+    assertEquals(RejectedExecutionException.class, failureOf(future).getClass());
+  }
+
+  @Test
+  public void testDelayedExecution_runsOnSchedulerThread() throws Exception {
+    Thread schedulerThread = scheduler.submit(Thread::currentThread).get(5, TimeUnit.SECONDS);
+    CompletableFuture<Thread> future =
+        FutureCombiner.delayExecution(
+            scheduler, 10, TimeUnit.MILLISECONDS, Thread::currentThread);
+    assertSame(schedulerThread, future.get(5, TimeUnit.SECONDS));
+  }
+
+  @Test
+  public void testDelayedExecution_completedNormally_doesNotCancelScheduledTask() throws Exception {
+    ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+    ScheduledFuture<?> scheduledTask = mock(ScheduledFuture.class);
+    ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
+    Mockito.<ScheduledFuture<?>>when(
+            mockScheduler.schedule(task.capture(), eq(1L), eq(TimeUnit.HOURS)))
+        .thenReturn(scheduledTask);
+
+    CompletableFuture<Integer> future =
+        FutureCombiner.delayExecution(mockScheduler, 1, TimeUnit.HOURS, () -> func(num1));
+    task.getValue().run();
+
+    assertEquals(num1, future.get(5, TimeUnit.SECONDS));
+    Mockito.verifyNoMoreInteractions(scheduledTask);
+  }
+
   Integer func(int i) {
     return i;
   }
