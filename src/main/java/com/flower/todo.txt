@@ -86,11 +86,20 @@ Flower - lightweight workflow engine
 - GlobalFunctionContainer - optional namespace field?
 
 - Refactor/generalize/DRY?
-    - FunctionCallParameterCreator
+    + FunctionCallParameterCreator (creator routing via annotation -> creator map)
     - StepCallContextCreator
     - FlowCallContextCreator
-    - Parameter types: one handler per parameter type, instead of an annotation if/else chain in FunctionRecord
-        and per-function-type switches in FunctionCallUtil (adding a parameter type currently touches ~10 places)
+    + Parameter types: annotations are described by a single table (ParameterAnnotationSpec), creators are routed
+        by annotation, and parameters are resolved by a single switch in FunctionCallUtil (FunctionCallState)
+    - In / Out / InOut / InRet parameter creators (~1550 lines): In, Out and InRet repeat the same skeleton -
+        fromBaseParameter / fromCallParameter / fromTransitOverrideParameter, each with the same type
+        compatibility chains (field -> call -> global, field -> call, call -> global), only with reversed direction
+        (Out) or a different source (InRet: step return value). In and InRet also call each other for cross-overrides
+        (@In <-> @InRet) via static instances of each other.
+        Possible approach: one shared skeleton parameterized by direction (read / write) and source (state field /
+        step return value), keeping only the type comparison specific to each kind.
+        Readability only - well covered by tests, but the type rules are subtle, so it's the riskiest part to
+        refactor. Worth doing before changing the type rules.
 
 - Step references are strings (@FlowType(firstStep), @StepFunction(transit), @StepRef parameter names):
     validated at Flower.initialize(), not at compile time; IDE renames don't update them. See README
