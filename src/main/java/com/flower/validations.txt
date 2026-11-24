@@ -84,13 +84,16 @@ Validation - parameter doesn't exist (thrown NPE now)
                         that must have default constructors.
 
 * Event function without binding
-* @Out and @InOut parameters are only allowed in @Exclusive events
++* @Out and @InOut parameters are only allowed in SYNCHRONIZED and FINALIZER Event Functions
++    (rejected in NON_BLOCKING and BLOCKING)
++* @EventBus parameter must be of type FlowEventBus, and is only allowed in Step, Transit and StepAndTransit
++    Functions (and Global Functions called from them), not in Event Functions
 
 
 5.2 Global function must exist for call
 5.3 Transit function must exist for Step
-5.3 TransitCall / StepAndTransitCall must call a global function that returns Transition or ListenableFuture<Transition>
-5.4 Transitioner must return Transition or ListenableFuture<Transition>
+5.3 TransitCall / StepAndTransitCall must call a global function that returns Transition or CompletableFuture<Transition>
+5.4 Transitioner must return Transition or CompletableFuture<Transition>
 5.5 No matching state parameter For (@In / @InOut / @Out)
 5.6 No matching global parameter from a call
 5.7 Override parameter names match (calls and transit override)
@@ -122,7 +125,8 @@ Validation - parameter doesn't exist (thrown NPE now)
 
 * Can't have duplicate Transit Override
 
-* return direct / return ListenableFuture
+* return direct / return CompletableFuture
++    - async Functions must return CompletableFuture: other Future / CompletionStage return types are rejected
 
 * Global functions with the same name from different containers
 
@@ -143,10 +147,10 @@ Validations to perform:
 8. TransitFunction parameters with empty mapping must be overridden in all StepFunctions that use the TransitFunction.
 9. Parameter passing type safety.
 
-11. Transit function to return Transition or ListenableFuture<Transition>
+11. Transit function to return Transition or CompletableFuture<Transition>
 13. Transit function must be defined for Step
 14. Global function must be defined for Call
-    and if Transit call, must return ListenableFuture<Transition>
+    and if Transit call, must return CompletableFuture<Transition>
 14.1 Call function must return void
 15. Duplicate annotations:
     - multiple/conflicting class-level annotations

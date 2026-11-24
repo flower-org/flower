@@ -49,6 +49,9 @@ Flower - lightweight workflow engine
     - ?? @LoggingContext - state fields? custom annotations + getAnnotatedFlowStateFields?
     - Use queue to gather EventRunners for sequential events (e.g. BEFORE_FLOW, BEFORE_STEP, BEFORE_STEP_ITERATION, BEFORE_EXEC)
     - @FlowException for EXCEPTION event?
+    - Report exceptions from NON_BLOCKING / BLOCKING / SYNCHRONIZED Event Functions - currently swallowed silently
+        (EventRunUtil, "TODO: exception handling - log?"). Options: pluggable handler on Flower (default: log),
+        java.util.logging, SLF4J.
     - ?? Should we allow to disable Engine-level EventProfiles with @DisableEventProfiles?
         - TLDR version: ATM we DO allow to disable default EventProfiles on a Flow level with "@DisableEventProfiles"
         - The idea is that knowledge about default EventProfiles doesn't exist on Flow level, and Flow should be able to run
@@ -86,6 +89,13 @@ Flower - lightweight workflow engine
     - FunctionCallParameterCreator
     - StepCallContextCreator
     - FlowCallContextCreator
+    - Parameter types: one handler per parameter type, instead of an annotation if/else chain in FunctionRecord
+        and per-function-type switches in FunctionCallUtil (adding a parameter type currently touches ~10 places)
+
+- Step references are strings (@FlowType(firstStep), @StepFunction(transit), @StepRef parameter names):
+    validated at Flower.initialize(), not at compile time; IDE renames don't update them. See README
+    "Startup validation and Step references". Options: annotation processor for compile-time validation,
+    or generated name constants (JPA metamodel style).
 
 ---------------------------------------------------------
 ---------------------------------------------------------
@@ -144,7 +154,7 @@ NextGen (might never happen):
 
 - Flow Persistence and cross-server child flows probably calls for alternative synchronization mechanism for parent flows to
     be able to understand state updates of their child flows.
-    - Listenable Futures are not good enough anymore, because if a parent flow will be restored from persisted state
+    - In-memory futures (CompletableFuture) are not good enough anymore, because if a parent flow will be restored from persisted state
         those futures for child flows will be lost, and a way should exist for them to be recreated from persisted flow state.
     - Also such synchronization needs to work in cross-server.
     - It's possible to think about receiving more granular events from child flows via the same mechanism, like stepRefPrm switch events etc.
@@ -203,15 +213,15 @@ Q/A, rejected ideas
         - it can cause a bit of confusion and unexpected blocking:
             e.g. let's look at 2 events - BEFORE_STEP_ITERATION and BEFORE_EXEC.
             If there is a BLOCKING handler on BEFORE_STEP_ITERATION there can be 2 options.
-            1) BLOCKING handlers run before PARALLEL - if we have non-PARALLEL handlers on BEFORE_EXEC we can't start
+            1) BLOCKING handlers run before NON_BLOCKING - if we have non-NON_BLOCKING handlers on BEFORE_EXEC we can't start
                 those handlers and therefore can't start next step;
-            2) BLOCKING handlers run after PARALLEL - that would mean both BLOCKING and PARALLEL handlers
+            2) BLOCKING handlers run after NON_BLOCKING - that would mean both BLOCKING and NON_BLOCKING handlers
                 will block BEFORE_EXEC handlers and next step.
             So in many cases BLOCKING will factually block execution of main flow, which would violate its definition
             and overall is counterintuitive.
     - special flag SEQUENTIAL/PARALLEL for EventTypeHandlers (m.b. boolean collapseEvents)
         - too confusing, there is a clear sequence of Events, and the handlers should be run accordingly.
-            while it's acceptable under some circumstances to allow PARALLEL from different events to run simultaneously,
+            while it's acceptable under some circumstances to allow NON_BLOCKING from different events to run simultaneously,
             but the start sequence should correspond to sequence of events
     - We don't inherit EventProfiles with FlowInheritance, but we append EventProfiles from Engine / Engine.registerBaseEventProfile
         - as such, Events defined on a superflow can be viewed as an integral part of flow's logic, and by default subflow

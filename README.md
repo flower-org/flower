@@ -25,11 +25,15 @@ Flower is a lightweight workflow engine.
 
 [Global Functions and Global Function Calls](#global-functions-and-global-function-calls)
 
+[Events and Event Concurrency](#events-and-event-concurrency)
+
+[Startup validation and Step references](#startup-validation-and-step-references)
+
 
 ## Introduction
 
 Flower as a library provides a set of Java Annotations with interpreter (Flower Engine) that allow to define program structure in the form of Flows.
-Flower is based on Guava Listenable Futures https://guava.dev/releases/21.0/api/docs/com/google/common/util/concurrent/Futures.html.
+Flower is based on JDK `CompletableFuture`s https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/CompletableFuture.html.
 
 The idea behind Flower is to implement a model that can be used for better structuring of complex, multi-step processes. Such processes typically have plenty of logic related to reiterating, retrying, throttling, waiting, delaying, analyzing failures and trying again; going back a step or two, or handling reaching a state at which it's best to roll back everything that has been done prior.
 
@@ -43,12 +47,12 @@ On top of that, Flower programming model presents other noteworthy properties:
 - Child Flows allow to define parallel branches and trees of execution without sacrificing the overall clarity of visualizable execution structure;
 - Flow Inheritance and support for Java generics allow to easily slice/dice and create variations of existing Flows for better versatility;
 - Event Profiles feature provides means to program Flow execution control routines, like automated logging, metrics collecting; and can be used for less standard tasks - Flow state persistence, etc.;
-- Completely non-blocking execution model, based on ListenableFutures;
+- Completely non-blocking execution model, based on CompletableFutures;
 - Can support large number of parallel Flows, all of them executing on a limited number of threads in a ThreadPool;
 - Flow sleep/execution delays are trivial with Transition feature without blocking any threads;
-- No boilerplate required to wait for Listenable Future completion and extract outputs;
+- No boilerplate required to wait for Future completion and extract outputs;
 
-It's important to note, that while Flower model does not prohibit distributed execution on a cluster of machines, the current version of Flower Engine is implemented as a lightweight library that doesn't provide clustering features out of the box, and it's not in our current milestones. The reasons are that right now we're in the earliest phase in the development of technology that can grow into something much bigger, and the main goal is to prove beyond any doubt that the model works well for its purpose, and works well on what can be referred to as "micro-level", being used as a structuring layer on top of Listenable Futures for the class of tasks that are usually programmed directly with Listenable Futures, not in the last place because we have very good use cases to utilize Flower in this capacity. Should this effort prove successful, there would be no better incentive to make it clustered and horizontally scalable. This early phase is also important because what is emerging here can be viewed as a programming paradigm very different from anything else I've seen before, and the value of proving that it works as a concept can't be underestimated.
+It's important to note, that while Flower model does not prohibit distributed execution on a cluster of machines, the current version of Flower Engine is implemented as a lightweight library that doesn't provide clustering features out of the box, and it's not in our current milestones. The reasons are that right now we're in the earliest phase in the development of technology that can grow into something much bigger, and the main goal is to prove beyond any doubt that the model works well for its purpose, and works well on what can be referred to as "micro-level", being used as a structuring layer on top of CompletableFutures for the class of tasks that are usually programmed directly with Futures, not in the last place because we have very good use cases to utilize Flower in this capacity. Should this effort prove successful, there would be no better incentive to make it clustered and horizontally scalable. This early phase is also important because what is emerging here can be viewed as a programming paradigm very different from anything else I've seen before, and the value of proving that it works as a concept can't be underestimated.
 
 Some of my far-fetched thoughts and dreams of how Flower's model can change current architectural patterns when applied on a mesh scale can be found in Appendix. **TODO: Appendix with idea about replacing microservice architecture pattern**
 
@@ -115,7 +119,7 @@ In our "HelloWorld" flow it looks like this:
 
     @FlowType(firstStep = "HELLO_STEP")
 
-The simplest way to mark a static method of a Flow as its Step would be to annotate the method with `@SimpleStepFunction`. Please note, that in this case the method must return either `Transition` or `ListenableFuture<Transition>`, which is required due to the 2nd responsibility of a Step - to define which Step should execute after it.
+The simplest way to mark a static method of a Flow as its Step would be to annotate the method with `@SimpleStepFunction`. Please note, that in this case the method must return either `Transition` or `CompletableFuture<Transition>`, which is required due to the 2nd responsibility of a Step - to define which Step should execute after it.
 Name of a Step can optionally be specified in annotation, otherwise Flower gets corresponding method name via reflection and uses that string as Step's name. 
 
 
@@ -136,7 +140,7 @@ Here's an example of how a `HELLO_STEP` function from [example 1](#example-1-hel
     10 |    return WORLD_STEP;
     11 |  }
     
-In this case `@TransitFunction` will be executed right after `@StepFunction` (i.e. if Step function returns a `ListenableFuture`, after that Future completes). The main reason for implementing this split is to provide a mechanism to reuse both parts, importantly - Transitioner part. We'll discuss this in further detail after function parameters are covered, in section [Reusing Transit Functions](#reusing-transit-functions).
+In this case `@TransitFunction` will be executed right after `@StepFunction` (i.e. if Step function returns a `CompletableFuture`, after that Future completes). The main reason for implementing this split is to provide a mechanism to reuse both parts, importantly - Transitioner part. We'll discuss this in further detail after function parameters are covered, in section [Reusing Transit Functions](#reusing-transit-functions).
 
 
 ## Flow and Function names
@@ -191,7 +195,7 @@ It means that we inject the current value stored in State Field to this paramete
 
 - **@Out**: Output function parameter. Maps output parameter to a State Field. 
 It means that our function provides new value to update State Field with, after the function executed.
-The corresponding function parameter must be of type `OutPrm<StateFieldType>`,  and allows to set output either as a value, or as a ListenableFuture (methods `setOutValue(...)` and `setOutFuture(...)`);
+The corresponding function parameter must be of type `OutPrm<StateFieldType>`,  and allows to set output either as a value, or as a CompletableFuture (methods `setOutValue(...)` and `setOutFuture(...)`);
 
 - **@InOut**: Combines the features of both `@In` and `@Out`, i.e. gives access to current value from State Field, and also allows to update the value of that State Field after the function executed.
 The corresponding function parameter must be of type `InOutPrm<StateFieldType>`. To get the current value of State Field, use method `getInValue()`. Similarly to `OutPrm`, methods `setOutValue(...)` and `setOutFuture(...)` allow to update value of a State Field.
@@ -210,7 +214,14 @@ Parameters `@InRet` and `@InRetOrException` can only be used in `@TransitFunctio
 
 ### Flower engine parameters
 
-Those parameters can be used only in `@StepFunction` and `@SimpleStepFunction`.
+- **@Exec**: Injects Flower's own Executor (the Flow scheduler), e.g. to move execution back to a Flower thread. Can be used in any Function.
+The corresponding function parameter must be of type `java.util.concurrent.Executor`.
+
+- **@EventBus**: Injects the `FlowEventBus` of the current Flow instance. Each Flow instance has its own bus, shared by all its Step and Transit Functions for the whole lifetime of the Flow: e.g. one Step can `register(...)` futures and a later Step can wait for the first of them to fire with `next()`. The bus is only created for Flow types that use `@EventBus`.
+Can be used in `@StepFunction`, `@TransitFunction` and `@SimpleStepFunction` (and Global Functions called from them), but not in Event Functions.
+The corresponding function parameter must be of type `com.flower.eventbus.FlowEventBus`.
+
+The following parameters can be used only in `@StepFunction` and `@SimpleStepFunction`.
 
 - **@FlowRepo**: Represents a reference to a Flow repository to query `FlowFuture`-s. 
 The corresponding function parameter must be of type `FlowRepoPrm`.
@@ -348,6 +359,68 @@ Global Functions present the possibility to reuse the code fully by means of Flo
 2) Step Functions can refer to Transit Functions just with 1 additional annotation element (minus TransitOverrides), e.g.: `@StepFunction(transit = "transit")`;
 3) The Global Function Call structure is known to Flower and potentially can be used in Flow diagramming, etc.;
 4) Makes Flower model more complete (super-far-fetched dreams about extending Flower model to other languages, enabling cross-language execution, or even serving as a foundation for some new programming paradigm).
+
+
+## Events and Event Concurrency
+
+Event Profiles allow to run additional logic - logging, metrics, persistence, etc. - at well-defined points of Flow execution, without mixing it into Flow logic.
+An Event Profile is a class annotated with `@EventProfileContainer`, registered with `flower.registerEventProfile(...)` and bound to a Flow with `@EventProfiles({...})`. Its static methods annotated with `@EventFunction(types = {...})` are called on the following `EventType`s: `BEFORE_FLOW`, `BEFORE_STEP`, `BEFORE_STEP_ITERATION`, `BEFORE_EXEC`, `AFTER_EXEC`, `BEFORE_TRANSIT`, `AFTER_TRANSIT`, `AFTER_STEP_ITERATION`, `AFTER_STEP`, `AFTER_FLOW`, `FLOW_EXCEPTION`.
+
+     1 |  @EventProfileContainer(name = "Metrics")
+     2 |  public class MetricsProfile {
+     3 |    @State Integer stepCount;
+     4 |
+     5 |    @EventFunction(types = EventType.BEFORE_STEP, concurrency = Concurrency.SYNCHRONIZED)
+     6 |    static void countStep(@InOut NullableInOutPrm<Integer> stepCount) {
+     7 |      Integer count = stepCount.getInValue();
+     8 |      stepCount.setOutValue(count == null ? 1 : count + 1);
+     9 |    }
+    10 |
+    11 |    @EventFunction(types = EventType.AFTER_FLOW)  // NON_BLOCKING by default
+    12 |    static void report(@Nullable @In Integer stepCount, @FlowInfo FlowInfoPrm flowInfo) { ... }
+    13 |  }
+
+Each Event Function has a `concurrency` that defines whether the Flow waits for it, and how it runs relative to other Event Functions:
+
+| Concurrency | Blocks the Flow | Runs | Can update EventProfile state (`@Out`/`@InOut`) | Exception |
+|---|---|---|---|---|
+| `NON_BLOCKING` (default) | no | in parallel, on the Flow's scheduler | no | ignored |
+| `BLOCKING` | yes | in parallel, on the Flow's scheduler | no | ignored |
+| `SYNCHRONIZED` | yes | sequentially within its EventProfile | yes | ignored |
+| `FINALIZER` | yes | sequentially, after all other blocking Event Functions | yes | fails the Flow |
+
+For every Event, Event Functions run in the following order:
+1) All `NON_BLOCKING` Event Functions of all EventProfiles are started, and not awaited;
+2) At the same time, all `BLOCKING` Event Functions are started in parallel;
+3) For each EventProfile, once its `BLOCKING` Event Functions are done, its `SYNCHRONIZED` Event Functions run sequentially. Different EventProfiles proceed in parallel, since each of them only updates its own state;
+4) Once all EventProfiles are done, `FINALIZER` Event Functions run sequentially;
+5) The Flow resumes, unless a `FINALIZER` failed.
+
+This applies uniformly to all EventTypes, including `AFTER_FLOW` and `FLOW_EXCEPTION`: the Flow's future completes only once their blocking Event Functions are done. A failing `AFTER_FLOW` `FINALIZER` fails the Flow (which then runs `FLOW_EXCEPTION` Event Functions); a failing `FLOW_EXCEPTION` `FINALIZER` is added as a suppressed exception to the Flow's exception.
+
+Notes:
+- Event Functions can't update Flow state. `@In`/`@Out`/`@InOut` refer to the EventProfile's own `@State`, and Flow state can be read with `@InFromFlow`;
+- `@Out`/`@InOut` in `NON_BLOCKING` or `BLOCKING` Event Functions are rejected at `initialize()`;
+- Parameters are read when the Event fires, so `NON_BLOCKING` and `BLOCKING` Event Functions don't see EventProfile state updates made by `SYNCHRONIZED`/`FINALIZER` Event Functions of the same Event;
+- Mutable objects passed as parameters (collections, atomics, etc.) bypass these rules, and their thread safety is the user's responsibility;
+- Exceptions marked as "ignored" above don't affect the Flow, and currently aren't reported anywhere (**TODO: logging / exception handler**).
+
+
+## Startup validation and Step references
+
+Steps and Transit Functions are referenced by name, as strings: `@FlowType(firstStep = "...")`, `@StepFunction(transit = "...")`, and `@StepRef` step names (the parameter name by default). All such references, as well as parameter types, state field initialization along execution paths, etc., are validated in `flower.initialize()`, so a broken reference fails at startup, not in the middle of a Flow.
+However, it's not a compile-time check: e.g. renaming a Step method in an IDE doesn't update strings that refer to it. The recommended practice is to have a unit test that registers all Flows and calls `initialize()`, which catches all such problems in CI:
+
+     1 |  @Test
+     2 |  void flowsAreValid() {
+     3 |    Flower flower = new Flower();
+     4 |    flower.registerFlow(HelloWorldFlow.class);
+     5 |    flower.initialize();
+     6 |  }
+
+Possible future improvements (not implemented):
+- an annotation processor that performs the same validation at compile time;
+- an annotation processor that generates constants for Step and Transit Function names (similar to JPA metamodel), so that renames break compilation.
 
 
 
