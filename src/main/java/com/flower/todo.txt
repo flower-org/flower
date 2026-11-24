@@ -101,10 +101,27 @@ Flower - lightweight workflow engine
         Readability only - well covered by tests, but the type rules are subtle, so it's the riskiest part to
         refactor. Worth doing before changing the type rules.
 
-- Step references are strings (@FlowType(firstStep), @StepFunction(transit), @StepRef parameter names):
+- Step references are strings (@FlowType(firstStep), @StepFunction(transit), @StepRef / @StepCall names):
     validated at Flower.initialize(), not at compile time; IDE renames don't update them. See README
-    "Startup validation and Step references". Options: annotation processor for compile-time validation,
-    or generated name constants (JPA metamodel style).
+    "Startup validation and Step references". Ideas, roughly from cheapest to most involved:
+    - "Did you mean ...?" in initialize() errors for unknown Step / Transit names (closest existing name by edit
+        distance) - cheap, makes typos and stale names after a rename obvious.
+    - Validation helper for tests, e.g. Flower.validate(Class<?>... flows) or a utility that registers all
+        @FlowType classes in a package and calls initialize(), so "flows are valid" is a one-line CI test.
+    - Recommended style: name constants, e.g. static final String STEP2 = "STEP2"; used in transit = ...,
+        @StepRef(stepName = STEP2) etc. IDE renames of the constant then update all references (the method name
+        can still drift from the constant - could be checked in initialize(): warn if a constant-named Step's
+        method name differs).
+    - Mark the first Step on the method instead of by name, e.g. @SimpleStepFunction(first = true), removing the
+        @FlowType(firstStep = "...") string.
+    - Report unreachable Steps / unused Transit Functions in initialize() (see validations.txt "Unreachable
+        stepRefPrm") - catches references that silently point to the wrong place after a rename.
+    - Annotation processor for compile-time validation of the same references (no API change; duplicates part
+        of initialize() checks with javax.lang.model).
+    - Annotation processor that generates name constants (JPA metamodel style: MyFlow_.STEP2), so renames
+        break compilation.
+    - IDE plugin (e.g. IntelliJ reference contributor): navigation, find usages and rename for Step names in
+        Flower annotations - best developer experience, separate project.
 
 ---------------------------------------------------------
 ---------------------------------------------------------
