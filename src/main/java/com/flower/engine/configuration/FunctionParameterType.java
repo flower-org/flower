@@ -19,6 +19,7 @@ public enum FunctionParameterType {
   STEP_REF,
   TERMINAL,
   FLOW_TYPE_FACTORY,
+  FLOW_REPO,
   EVENT_BUS,
 
   FLOW_INFO,

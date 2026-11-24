@@ -299,10 +299,9 @@ final class ParameterAnnotationSpec<A extends Annotation> {
                   FunctionType.GLOBAL)
               .javaType(FlowFactoryPrm.class)
               .build(),
-          // TODO: FlowRepo records have historically used FLOW_TYPE_FACTORY as their type
           spec(
                   FlowRepo.class,
-                  FunctionParameterType.FLOW_TYPE_FACTORY,
+                  FunctionParameterType.FLOW_REPO,
                   FlowRepo::name,
                   (r, a) -> r.flowRepoAnnotation = a)
               .onlyIn(
