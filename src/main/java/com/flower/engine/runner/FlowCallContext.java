@@ -31,6 +31,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.tuple.Pair;
+import java.util.concurrent.Executor;
 
 public class FlowCallContext implements EventRunner {
   final Map<String, StepCallContext> stepCalls;
@@ -45,6 +46,8 @@ public class FlowCallContext implements EventRunner {
   final boolean usesEventBus;
   final StateAccessConfig flowStateAccessConfig;
   final EventExceptionReporter eventExceptionReporter;
+  /** Executor for stages that call user functions, see SchedulerAffineExecutor. */
+  final Executor functionExecutor;
 
   public FlowCallContext(
       String flowName,
@@ -54,8 +57,10 @@ public class FlowCallContext implements EventRunner {
       Map<Class<?>, EventProfileForFlowTypeCallContext> eventContexts,
       StateAccessConfig flowStateAccessConfig,
       EventExceptionReporter eventExceptionReporter,
+      Executor functionExecutor,
       ScheduledExecutorService scheduler) {
     this.flowName = flowName;
+    this.functionExecutor = functionExecutor;
     this.eventExceptionReporter = eventExceptionReporter;
     this.flowStateAccessConfig = flowStateAccessConfig;
     this.flowType = flowType;
@@ -140,7 +145,8 @@ public class FlowCallContext implements EventRunner {
         transition,
         flowException,
         scheduler,
-        eventExceptionReporter);
+        eventExceptionReporter,
+        functionExecutor);
   }
 
   <T> Pair<FlowImpl<T>, CompletableFuture<InternalTransition>> runFirstStep(FlowImpl<T> flow) {
@@ -175,7 +181,13 @@ public class FlowCallContext implements EventRunner {
           FuturesTool.transformAsync(
               runEvents(EventType.BEFORE_STEP_ITERATION, flow, flow, null, null),
               void_ -> stepCallContext.call(
-                      flow.getId(), flow.getState(), this, flow, flow, flow.getEventBus()),
+                      flow.getId(),
+                      flow.getState(),
+                      this,
+                      flow,
+                      flow,
+                      flow.getEventBus(),
+                      functionExecutor),
               scheduler),
           t ->
               FuturesTool.transform(

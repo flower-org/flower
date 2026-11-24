@@ -11,6 +11,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 import javax.annotation.Nullable;
+import java.util.concurrent.Executor;
 
 public interface StepCallContext {
   StepInfoPrm getStepInfo();
@@ -27,7 +28,8 @@ public interface StepCallContext {
       EventRunner eventRunner,
       EventContext eventContext,
       EventParametersProvider eventParametersProvider,
-      @Nullable FlowEventBus eventBus);
+      @Nullable FlowEventBus eventBus,
+      Executor functionExecutor);
 
   StepParameterInitProfile stepParameterInitProfile();
 

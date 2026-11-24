@@ -33,6 +33,7 @@ public class FlowRunner implements FlowExecCallback {
 
   private final ScheduledExecutorService scheduler;
   private final EventExceptionReporter eventExceptionReporter = new EventExceptionReporter();
+  private final SchedulerAffineExecutor functionExecutor;
   private final FlowConfigurationRepo flowConfigurationRepo;
   private final FlowCallContextCreator flowCallContextCreator;
   private final Map<FlowId, CompletableFuture<Object>> activeFlows;
@@ -57,6 +58,7 @@ public class FlowRunner implements FlowExecCallback {
       int maxCacheSize) {
     this.flowConfigurationRepo = flowConfigurationRepo;
     this.scheduler = scheduler;
+    this.functionExecutor = new SchedulerAffineExecutor(scheduler);
     this.flowCallContextCreator = new FlowCallContextCreator(this);
     this.dynamicFlowExec = new DynamicFlowExec(this);
     activeFlows = new ConcurrentHashMap<>();
@@ -122,7 +124,8 @@ public class FlowRunner implements FlowExecCallback {
               globalFunctionsByContainerAndName,
               eventProfilesByType,
               defaultEventProfiles,
-              eventExceptionReporter);
+              eventExceptionReporter,
+              functionExecutor);
       Class<?> flowType = flowTypeRecord.flowType;
       //TODO: implement StateSerializer
       InternalFlowExec<?> flowExec = createExec(flowType, flowCallContext, null);

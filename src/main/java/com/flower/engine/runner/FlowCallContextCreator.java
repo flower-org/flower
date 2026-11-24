@@ -33,6 +33,7 @@ import java.util.Set;
 
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.commons.lang3.StringUtils;
+import java.util.concurrent.Executor;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -53,7 +54,8 @@ public class FlowCallContextCreator {
       Map<Class<?>, Map<String, GlobalFunctionRecord>> globalFunctionsByContainerAndName,
       Map<Class<?>, EventProfileContainerRecord> eventProfilesByType,
       List<Class<?>> defaultEventProfiles,
-      EventExceptionReporter eventExceptionReporter) {
+      EventExceptionReporter eventExceptionReporter,
+      Executor functionExecutor) {
     Map<String, StepCallContext> stepCalls = new HashMap<>();
     StateAccessConfig flowStateAccessConfig = createStateAccess(flowTypeRecord.state);
 
@@ -152,6 +154,7 @@ public class FlowCallContextCreator {
         eventContexts,
         flowStateAccessConfig,
         eventExceptionReporter,
+        functionExecutor,
         scheduler);
   }
 

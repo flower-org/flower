@@ -169,6 +169,16 @@ Instead, when a Step needs to wait:
 
 The same applies to Event Functions, which also run on Flower's scheduler. Note that `BLOCKING`, `SYNCHRONIZED` and `FINALIZER` mean that the Flow waits for those Event Functions, not that they may block a thread.
 
+**Blocked thread detection.** `new Flower()` and `new Flower(threadCount)` use a `TaskCheckingExecutor`, which helps to catch violations of this rule: a checker thread samples Flower's threads every second, and reports any thread that is running a task while being `BLOCKED`, `WAITING` or `TIMED_WAITING` (e.g. in `Thread.sleep(...)`, `Future.get()`, or waiting on a lock), with that thread's stack trace. By default reports are printed to stderr; a `CustomReporter`, a custom `TaskCheckHandler`, or a maximum task execution time (to also catch long-running tasks) can be configured via `TaskCheckingExecutor.builder()`, and the resulting executor passed to `new Flower(executor)`.
+
+Its limitations:
+- it only watches Flower's own threads of a `TaskCheckingExecutor`: with `new Flower(executor)` and any other executor, nothing is checked;
+- it's sampling-based, so blocks shorter than the check interval (1 second by default) may go unnoticed;
+- threads blocked in synchronous socket I/O are usually reported by the JVM as `RUNNABLE`, so they aren't detected, unless a maximum task execution time is configured;
+- it only covers Flower's own Functions: callbacks that you attach to futures yourself (e.g. `future.thenApply(...)` inside a Step) run on whichever thread completes the future, outside of Flower's control.
+
+Note that Flower always calls Step, Transit and Event Functions on its own scheduler, even when the previous stage was completed by another thread. E.g. if a Step Function returns a future completed by an asynchronous client's thread, its Transit Function still runs on Flower's scheduler, not on the client's thread - so the client's threads are never blocked by Flower Functions. This also holds across Flower engines: a Function of one engine never runs on another engine's thread.
+
 
 ## Flow and Function names
 

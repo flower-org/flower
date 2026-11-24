@@ -1,7 +1,5 @@
 package com.flower.engine.runner.step;
 
-import static com.flower.utilities.FuturesTool.directExecutor;
-
 import com.flower.anno.event.EventType;
 import com.flower.conf.FlowId;
 import com.flower.conf.StepInfoPrm;
@@ -23,6 +21,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 import javax.annotation.Nullable;
+import java.util.concurrent.Executor;
 
 public class StepContext implements StepCallContext {
   final FunctionCallContext stepFunctionCall;
@@ -76,7 +75,8 @@ public class StepContext implements StepCallContext {
       EventRunner eventRunner,
       EventContext eventContext,
       EventParametersProvider eventParametersProvider,
-      @Nullable FlowEventBus eventBus) {
+      @Nullable FlowEventBus eventBus,
+      Executor functionExecutor) {
     FunctionCallState stepCallState =
         FunctionCallState.forStep(flowId, stateAccess, stepReturnValueToFlowParameterName, eventBus);
 
@@ -87,7 +87,7 @@ public class StepContext implements StepCallContext {
             void_ ->
                 FuturesTool.callAsync(
                     () -> FunctionCallUtil.invokeStepFunction(stepCallState, stepFunctionCall)),
-            directExecutor());
+            functionExecutor);
     return FuturesTool.transformAsync(
         stepResult,
         ret ->
@@ -95,8 +95,8 @@ public class StepContext implements StepCallContext {
                 eventRunner.runEvents(
                     EventType.AFTER_EXEC, eventContext, eventParametersProvider, null, null),
                 void_ -> ret,
-                directExecutor()),
-        directExecutor());
+                functionExecutor),
+        functionExecutor);
   }
 
   CompletableFuture<InternalTransition> invokeTransitFunction(
@@ -105,7 +105,8 @@ public class StepContext implements StepCallContext {
       EventRunner eventRunner,
       EventContext eventContext,
       EventParametersProvider eventParametersProvider,
-      @Nullable FlowEventBus eventBus) {
+      @Nullable FlowEventBus eventBus,
+      Executor functionExecutor) {
     FunctionCallState callState =
         FunctionCallState.forTransit(stateAccess, stepFunctionReturnValue, eventBus);
 
@@ -116,7 +117,7 @@ public class StepContext implements StepCallContext {
             void_ ->
                 FuturesTool.callAsync(
                     () -> FunctionCallUtil.invokeTransitFunction(callState, transitFunctionCall)),
-            directExecutor());
+            functionExecutor);
     return FuturesTool.transformAsync(
         transitResult,
         transition ->
@@ -128,8 +129,8 @@ public class StepContext implements StepCallContext {
                     transition,
                     null),
                 void_ -> transition,
-                directExecutor()),
-        directExecutor());
+                functionExecutor),
+        functionExecutor);
   }
 
   CompletableFuture<InternalTransition> invokeTransitFunctionOnException(
@@ -138,7 +139,8 @@ public class StepContext implements StepCallContext {
       EventRunner eventRunner,
       EventContext eventContext,
       EventParametersProvider eventParametersProvider,
-      @Nullable FlowEventBus eventBus) {
+      @Nullable FlowEventBus eventBus,
+      Executor functionExecutor) {
     if (isTransitionerCatching) {
       FunctionCallState callState =
           FunctionCallState.forTransitOnException(stateAccess, t, eventBus);
@@ -150,7 +152,7 @@ public class StepContext implements StepCallContext {
               void_ ->
                   eventRunner.runEvents(
                       EventType.BEFORE_TRANSIT, eventContext, eventParametersProvider, null, null),
-              directExecutor());
+              functionExecutor);
       CompletableFuture<InternalTransition> transitResult =
           FuturesTool.transformAsync(
               beforeTransit,
@@ -158,7 +160,7 @@ public class StepContext implements StepCallContext {
                   FuturesTool.callAsync(
                       () ->
                           FunctionCallUtil.invokeTransitFunction(callState, transitFunctionCall)),
-              directExecutor());
+              functionExecutor);
       return FuturesTool.transformAsync(
           transitResult,
           transition ->
@@ -170,8 +172,8 @@ public class StepContext implements StepCallContext {
                       transition,
                       null),
                   void_ -> transition,
-                  directExecutor()),
-          directExecutor());
+                  functionExecutor),
+          functionExecutor);
     } else return CompletableFuture.failedFuture(t);
   }
 
@@ -207,7 +209,8 @@ public class StepContext implements StepCallContext {
       EventRunner eventRunner,
       EventContext eventContext,
       EventParametersProvider eventParametersProvider,
-      @Nullable FlowEventBus eventBus) {
+      @Nullable FlowEventBus eventBus,
+      Executor functionExecutor) {
     final ObjectStateAccess stateAccess = new ObjectStateAccess(flowState, flowStateAccessConfig);
 
     // 1) Call executor - step function
@@ -215,17 +218,17 @@ public class StepContext implements StepCallContext {
         FuturesTool.catchingAsync(
             FuturesTool.transform(
                 invokeStepFunction(
-                    flowId, stateAccess, eventRunner, eventContext, eventParametersProvider, eventBus),
+                    flowId, stateAccess, eventRunner, eventContext, eventParametersProvider, eventBus, functionExecutor),
                 stepFunctionReturnValue -> new RetValAndTransition(stepFunctionReturnValue, false),
-                directExecutor()),
+                functionExecutor),
             Throwable.class,
             t ->
                 FuturesTool.transform(
                     invokeTransitFunctionOnException(
-                        stateAccess, t, eventRunner, eventContext, eventParametersProvider, eventBus),
+                        stateAccess, t, eventRunner, eventContext, eventParametersProvider, eventBus, functionExecutor),
                     transition -> new RetValAndTransition(transition, true),
-                    directExecutor()),
-            directExecutor());
+                    functionExecutor),
+            functionExecutor);
     return FuturesTool.transformAsync(
         retValAndTransitionFuture,
         retValAndTransition -> {
@@ -239,10 +242,11 @@ public class StepContext implements StepCallContext {
                 eventRunner,
                 eventContext,
                 eventParametersProvider,
-                eventBus);
+                eventBus,
+                functionExecutor);
           }
         },
-        directExecutor());
+        functionExecutor);
   }
 
   @Override

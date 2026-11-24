@@ -1,7 +1,5 @@
 package com.flower.engine.runner.event;
 
-import static com.flower.utilities.FuturesTool.directExecutor;
-
 import com.flower.anno.event.EventType;
 import com.flower.conf.EventFunctionFailure;
 import com.flower.conf.Transition;
@@ -32,7 +30,8 @@ public class EventRunUtil {
       @Nullable Transition transition,
       @Nullable Throwable flowException,
       Executor scheduler,
-      EventExceptionReporter exceptionReporter) {
+      EventExceptionReporter exceptionReporter,
+      Executor functionExecutor) {
     if (functionsByProfile.stream().allMatch(List::isEmpty)) {
       return CompletableFuture.completedFuture(null);
     }
@@ -80,7 +79,8 @@ public class EventRunUtil {
             transition,
             flowException,
             scheduler,
-            exceptionReporter);
+            exceptionReporter,
+            functionExecutor);
 
     // 2) + 3) Per EventProfile: BLOCKING functions in parallel, then SYNCHRONIZED sequentially.
     // Different EventProfiles proceed independently (SYNCHRONIZED functions only change their own
@@ -108,7 +108,8 @@ public class EventRunUtil {
                   transition,
                   flowException,
                   scheduler,
-                  exceptionReporter),
+                  exceptionReporter,
+                  functionExecutor),
               void_ ->
                   runSequential(
                       synchronizedFunctions,
@@ -117,8 +118,9 @@ public class EventRunUtil {
                       transition,
                       flowException,
                       exceptionReporter,
-                      synchronizedExecutor),
-              directExecutor()));
+                      synchronizedExecutor,
+                      functionExecutor),
+              functionExecutor));
     }
 
     // 4) + 5) Once all EventProfiles are done, FINALIZER functions run sequentially; a failure
@@ -133,8 +135,9 @@ public class EventRunUtil {
                 transition,
                 flowException,
                 null,
-                null),
-        directExecutor());
+                null,
+                functionExecutor),
+        functionExecutor);
   }
 
   /**
@@ -152,7 +155,8 @@ public class EventRunUtil {
       @Nullable Transition transition,
       @Nullable Throwable flowException,
       @Nullable EventExceptionReporter exceptionReporter,
-      @Nullable Executor invokeExecutor) {
+      @Nullable Executor invokeExecutor,
+      Executor functionExecutor) {
     CompletableFuture<Void> currentFuture = CompletableFuture.completedFuture(null);
     for (EventFunctionContext function : functions) {
       currentFuture =
@@ -168,7 +172,7 @@ public class EventRunUtil {
                       transition,
                       flowException,
                       invokeExecutor),
-              directExecutor());
+              functionExecutor);
 
       if (exceptionReporter != null) {
         currentFuture =
@@ -178,7 +182,7 @@ public class EventRunUtil {
                 e ->
                     reportAndIgnore(
                         exceptionReporter, function, eventParametersProvider, eventType, e),
-                directExecutor());
+                functionExecutor);
       }
     }
     return currentFuture;
@@ -197,7 +201,8 @@ public class EventRunUtil {
       @Nullable Transition transition,
       @Nullable Throwable flowException,
       Executor executor,
-      EventExceptionReporter exceptionReporter) {
+      EventExceptionReporter exceptionReporter,
+      Executor functionExecutor) {
     if (functions.isEmpty()) {
       return CompletableFuture.completedFuture(null);
     }
@@ -218,7 +223,7 @@ public class EventRunUtil {
               e ->
                   reportAndIgnore(
                       exceptionReporter, function, eventParametersProvider, eventType, e),
-              directExecutor()));
+              functionExecutor));
     }
 
     return FuturesTool.whenAllComplete(futures);
