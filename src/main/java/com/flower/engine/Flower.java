@@ -1,5 +1,6 @@
 package com.flower.engine;
 
+import com.flower.conf.EventExceptionHandler;
 import com.flower.conf.FlowExec;
 import com.flower.conf.StateSerializer;
 import com.flower.conf.FlowerEngine;
@@ -36,6 +37,15 @@ public class Flower implements FlowerEngine {
 
   public Flower() {
     this(1);
+  }
+
+  /**
+   * Sets the handler for exceptions raised by NON_BLOCKING, BLOCKING and SYNCHRONIZED Event
+   * Functions, which otherwise don't affect the Flow. Defaults to {@link
+   * EventExceptionHandler#LOGGING}. Can be changed at any time.
+   */
+  public void setEventExceptionHandler(EventExceptionHandler handler) {
+    flowRunner.getEventExceptionReporter().setHandler(handler);
   }
 
   public void registerFlow(final Class<?>... flowTypes) {

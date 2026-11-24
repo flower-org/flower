@@ -3,6 +3,7 @@ package com.flower.engine.runner.event;
 import static com.flower.utilities.FuturesTool.directExecutor;
 
 import com.flower.anno.event.EventType;
+import com.flower.conf.EventFunctionFailure;
 import com.flower.conf.Transition;
 import com.flower.engine.runner.callfunc.FunctionCallState;
 import com.flower.engine.runner.callfunc.FunctionCallContext;
@@ -30,7 +31,8 @@ public class EventRunUtil {
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException,
-      Executor scheduler) {
+      Executor scheduler,
+      EventExceptionReporter exceptionReporter) {
     if (functionsByProfile.stream().allMatch(List::isEmpty)) {
       return CompletableFuture.completedFuture(null);
     }
@@ -72,8 +74,13 @@ public class EventRunUtil {
     // 1) Fire and forget NON_BLOCKING functions of all EventProfiles.
     CompletableFuture<Void> unusedNonBlocking =
         runParallel(
-            nonBlockingFunctions, eventParametersProvider, eventType, transition, flowException,
-            scheduler);
+            nonBlockingFunctions,
+            eventParametersProvider,
+            eventType,
+            transition,
+            flowException,
+            scheduler,
+            exceptionReporter);
 
     // 2) + 3) Per EventProfile: BLOCKING functions in parallel, then SYNCHRONIZED sequentially.
     // Different EventProfiles proceed independently (SYNCHRONIZED functions only change their own
@@ -100,7 +107,8 @@ public class EventRunUtil {
                   eventType,
                   transition,
                   flowException,
-                  scheduler),
+                  scheduler,
+                  exceptionReporter),
               void_ ->
                   runSequential(
                       synchronizedFunctions,
@@ -108,7 +116,7 @@ public class EventRunUtil {
                       eventType,
                       transition,
                       flowException,
-                      true,
+                      exceptionReporter,
                       synchronizedExecutor),
               directExecutor()));
     }
@@ -124,7 +132,7 @@ public class EventRunUtil {
                 eventType,
                 transition,
                 flowException,
-                false,
+                null,
                 null),
         directExecutor());
   }
@@ -132,6 +140,9 @@ public class EventRunUtil {
   /**
    * Runs {@code functions} one after another; each starts once the previous one is done.
    *
+   * @param exceptionReporter if not null, exceptions are reported to it and otherwise ignored (the
+   *     next function still runs); if null, an exception skips the remaining functions and fails the
+   *     returned future
    * @param invokeExecutor if not null, each function is called on this executor
    */
   static CompletableFuture<Void> runSequential(
@@ -140,7 +151,7 @@ public class EventRunUtil {
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException,
-      boolean hideExceptions,
+      @Nullable EventExceptionReporter exceptionReporter,
       @Nullable Executor invokeExecutor) {
     CompletableFuture<Void> currentFuture = CompletableFuture.completedFuture(null);
     for (EventFunctionContext function : functions) {
@@ -159,12 +170,14 @@ public class EventRunUtil {
                       invokeExecutor),
               directExecutor());
 
-      if (hideExceptions) {
+      if (exceptionReporter != null) {
         currentFuture =
             FuturesTool.catchingAsync(
                 currentFuture,
                 Throwable.class,
-                e -> CompletableFuture.completedFuture(null), // TODO: exception handling - log?
+                e ->
+                    reportAndIgnore(
+                        exceptionReporter, function, eventParametersProvider, eventType, e),
                 directExecutor());
       }
     }
@@ -174,7 +187,8 @@ public class EventRunUtil {
   /**
    * Starts all {@code functions} at once, each called on {@code executor}, so that synchronous
    * functions run concurrently. Parameters are read on the current thread. The returned future
-   * completes when all functions are done, and never fails.
+   * completes when all functions are done, and never fails: exceptions are reported to {@code
+   * exceptionReporter}.
    */
   static CompletableFuture<Void> runParallel(
       List<EventFunctionContext> functions,
@@ -182,7 +196,8 @@ public class EventRunUtil {
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException,
-      Executor executor) {
+      Executor executor,
+      EventExceptionReporter exceptionReporter) {
     if (functions.isEmpty()) {
       return CompletableFuture.completedFuture(null);
     }
@@ -200,14 +215,37 @@ public class EventRunUtil {
                   flowException,
                   executor),
               Throwable.class,
-              e ->  {
-                // TODO: exception handling - log?
-                return CompletableFuture.<Void>completedFuture(null);
-              },
+              e ->
+                  reportAndIgnore(
+                      exceptionReporter, function, eventParametersProvider, eventType, e),
               directExecutor()));
     }
 
     return FuturesTool.whenAllComplete(futures);
+  }
+
+  /** Reports a NON_BLOCKING / BLOCKING / SYNCHRONIZED Event Function failure; never throws. */
+  static CompletableFuture<Void> reportAndIgnore(
+      EventExceptionReporter exceptionReporter,
+      EventFunctionContext function,
+      EventParametersProvider eventParametersProvider,
+      EventType eventType,
+      Throwable exception) {
+    try {
+      exceptionReporter.report(
+          new EventFunctionFailure(
+              eventParametersProvider.getFlowInfo(),
+              eventType,
+              function.eventProfileName,
+              function.eventFunction.functionName,
+              function.eventFunction.concurrency,
+              exception));
+    } catch (VirtualMachineError e) {
+      throw e;
+    } catch (Throwable ignored) {
+      // Reporting must never affect the Flow or the remaining Event Functions
+    }
+    return CompletableFuture.completedFuture(null);
   }
 
   static CompletableFuture<Void> invokeEventFunction(

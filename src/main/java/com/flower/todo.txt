@@ -49,9 +49,8 @@ Flower - lightweight workflow engine
     - ?? @LoggingContext - state fields? custom annotations + getAnnotatedFlowStateFields?
     - Use queue to gather EventRunners for sequential events (e.g. BEFORE_FLOW, BEFORE_STEP, BEFORE_STEP_ITERATION, BEFORE_EXEC)
     - @FlowException for EXCEPTION event?
-    - Report exceptions from NON_BLOCKING / BLOCKING / SYNCHRONIZED Event Functions - currently swallowed silently
-        (EventRunUtil, "TODO: exception handling - log?"). Options: pluggable handler on Flower (default: log),
-        java.util.logging, SLF4J.
++   - Report exceptions from NON_BLOCKING / BLOCKING / SYNCHRONIZED Event Functions: per-engine
++       Flower.setEventExceptionHandler(...), default EventExceptionHandler.LOGGING (java.util.logging).
     - ?? Should we allow to disable Engine-level EventProfiles with @DisableEventProfiles?
         - TLDR version: ATM we DO allow to disable default EventProfiles on a Flow level with "@DisableEventProfiles"
         - The idea is that knowledge about default EventProfiles doesn't exist on Flow level, and Flow should be able to run

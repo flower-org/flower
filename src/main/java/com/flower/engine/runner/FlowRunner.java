@@ -12,6 +12,7 @@ import com.flower.engine.configuration.FlowConfigurationRepo;
 import com.flower.engine.configuration.FlowTypeRecord;
 import com.flower.engine.configuration.GlobalFunctionContainerRecord;
 import com.flower.engine.configuration.GlobalFunctionRecord;
+import com.flower.engine.runner.event.EventExceptionReporter;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -31,6 +32,7 @@ public class FlowRunner implements FlowExecCallback {
   private static final int MAXIMUM_CACHE_SIZE = 1000;
 
   private final ScheduledExecutorService scheduler;
+  private final EventExceptionReporter eventExceptionReporter = new EventExceptionReporter();
   private final FlowConfigurationRepo flowConfigurationRepo;
   private final FlowCallContextCreator flowCallContextCreator;
   private final Map<FlowId, CompletableFuture<Object>> activeFlows;
@@ -115,7 +117,12 @@ public class FlowRunner implements FlowExecCallback {
     for (FlowTypeRecord flowTypeRecord : flowConfigurationRepo.getFlowTypes()) {
       FlowCallContext flowCallContext =
           flowCallContextCreator.createFlowCallContext(
-              scheduler, flowTypeRecord, globalFunctionsByContainerAndName, eventProfilesByType, defaultEventProfiles);
+              scheduler,
+              flowTypeRecord,
+              globalFunctionsByContainerAndName,
+              eventProfilesByType,
+              defaultEventProfiles,
+              eventExceptionReporter);
       Class<?> flowType = flowTypeRecord.flowType;
       //TODO: implement StateSerializer
       InternalFlowExec<?> flowExec = createExec(flowType, flowCallContext, null);
@@ -201,6 +208,10 @@ public class FlowRunner implements FlowExecCallback {
 
   public <T> InternalFlowExec<T> getDynamicFlowExec() {
     return dynamicFlowExec;
+  }
+
+  public EventExceptionReporter getEventExceptionReporter() {
+    return eventExceptionReporter;
   }
 
   public ScheduledExecutorService getScheduler() {

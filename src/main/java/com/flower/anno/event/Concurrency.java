@@ -21,7 +21,8 @@ package com.flower.anno.event;
  * NON_BLOCKING and BLOCKING Events are called on the Flow's scheduler, so synchronous functions run concurrently.
  * Event parameters are read when the function is started, so NON_BLOCKING and BLOCKING Events don't see
  * EventProfile State updates made by SYNCHRONIZED and FINALIZER Events for the same Event.
- * Exceptions raised by NON_BLOCKING, BLOCKING and SYNCHRONIZED Events are ignored and don't affect the Flow.
+ * Exceptions raised by NON_BLOCKING, BLOCKING and SYNCHRONIZED Events don't affect the Flow; they're reported
+ * to the engine's {@link com.flower.conf.EventExceptionHandler} (by default, logged).
  * Events can't update Flow State; only SYNCHRONIZED and FINALIZER Events can update their own
  * EventProfile State (@Out/@InOut).
  */

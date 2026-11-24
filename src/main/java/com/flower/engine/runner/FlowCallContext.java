@@ -6,6 +6,7 @@ import com.flower.conf.StepInfoPrm;
 import com.flower.conf.Transition;
 import com.flower.engine.FlowImpl;
 import com.flower.engine.runner.event.EventContext;
+import com.flower.engine.runner.event.EventExceptionReporter;
 import com.flower.engine.runner.event.EventFunctionContext;
 import com.flower.engine.runner.event.EventFunctions;
 import com.flower.engine.runner.event.EventParametersProvider;
@@ -43,6 +44,7 @@ public class FlowCallContext implements EventRunner {
   /** Whether any function of this Flow type takes an @EventBus parameter. */
   final boolean usesEventBus;
   final StateAccessConfig flowStateAccessConfig;
+  final EventExceptionReporter eventExceptionReporter;
 
   public FlowCallContext(
       String flowName,
@@ -51,8 +53,10 @@ public class FlowCallContext implements EventRunner {
       String firstStepName,
       Map<Class<?>, EventProfileForFlowTypeCallContext> eventContexts,
       StateAccessConfig flowStateAccessConfig,
+      EventExceptionReporter eventExceptionReporter,
       ScheduledExecutorService scheduler) {
     this.flowName = flowName;
+    this.eventExceptionReporter = eventExceptionReporter;
     this.flowStateAccessConfig = flowStateAccessConfig;
     this.flowType = flowType;
     this.stepCalls = stepCalls;
@@ -125,7 +129,8 @@ public class FlowCallContext implements EventRunner {
       EventFunctions eventFunctions = callContext.getFunctionsForEventType(eventType);
       if (eventFunctions != null)
         eventFunctionsByProfile.add(
-            eventFunctions.getFunctions(eventContext.getFlowState(), eventProfileState));
+            eventFunctions.getFunctions(
+                eventContext.getFlowState(), eventProfileState, callContext.getEventProfileName()));
     }
 
     return EventRunUtil.runEvents(
@@ -134,7 +139,8 @@ public class FlowCallContext implements EventRunner {
         eventType,
         transition,
         flowException,
-        scheduler);
+        scheduler,
+        eventExceptionReporter);
   }
 
   <T> Pair<FlowImpl<T>, CompletableFuture<InternalTransition>> runFirstStep(FlowImpl<T> flow) {

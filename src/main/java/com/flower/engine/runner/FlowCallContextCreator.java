@@ -14,6 +14,7 @@ import com.flower.engine.configuration.StepRecord;
 import com.flower.engine.configuration.TransitionerCallRecord;
 import com.flower.engine.configuration.TransitionerRecord;
 import com.flower.engine.function.StateField;
+import com.flower.engine.runner.event.EventExceptionReporter;
 import com.flower.engine.runner.event.EventFunction;
 import com.flower.engine.runner.event.EventProfileForFlowTypeCallContext;
 import com.flower.engine.runner.parameters.FunctionCallParameterCreator;
@@ -51,7 +52,8 @@ public class FlowCallContextCreator {
       FlowTypeRecord flowTypeRecord,
       Map<Class<?>, Map<String, GlobalFunctionRecord>> globalFunctionsByContainerAndName,
       Map<Class<?>, EventProfileContainerRecord> eventProfilesByType,
-      List<Class<?>> defaultEventProfiles) {
+      List<Class<?>> defaultEventProfiles,
+      EventExceptionReporter eventExceptionReporter) {
     Map<String, StepCallContext> stepCalls = new HashMap<>();
     StateAccessConfig flowStateAccessConfig = createStateAccess(flowTypeRecord.state);
 
@@ -149,6 +151,7 @@ public class FlowCallContextCreator {
         firstStepName,
         eventContexts,
         flowStateAccessConfig,
+        eventExceptionReporter,
         scheduler);
   }
 

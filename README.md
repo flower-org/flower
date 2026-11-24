@@ -419,7 +419,18 @@ Notes:
 - `@Out`/`@InOut` in `NON_BLOCKING` or `BLOCKING` Event Functions are rejected at `initialize()`;
 - Parameters are read when the Event fires, so `NON_BLOCKING` and `BLOCKING` Event Functions don't see EventProfile state updates made by `SYNCHRONIZED`/`FINALIZER` Event Functions of the same Event;
 - Mutable objects passed as parameters (collections, atomics, etc.) bypass these rules, and their thread safety is the user's responsibility;
-- Exceptions marked as "ignored" above don't affect the Flow, and currently aren't reported anywhere (**TODO: logging / exception handler**).
+- Exceptions marked as "ignored" above don't affect the Flow, but they're reported to the engine's `EventExceptionHandler` (see below).
+
+### Event Function exceptions
+
+Exceptions raised by `NON_BLOCKING`, `BLOCKING` and `SYNCHRONIZED` Event Functions don't affect the Flow, but they're reported to the Flower engine's `EventExceptionHandler`, together with context: Flow info, `EventType`, EventProfile, Event Function name and its concurrency (`EventFunctionFailure`). `FINALIZER` exceptions fail the Flow instead, and aren't reported to the handler.
+
+By default (`EventExceptionHandler.LOGGING`) failures are logged at `WARNING` via `java.util.logging`, logger `com.flower.events`. A custom handler can be set per Flower engine, at any time:
+
+     1 |  flower.setEventExceptionHandler(
+     2 |      failure -> metrics.increment("flower.event.failure", failure.eventType().name()));
+
+The handler is called on a Flower scheduler thread, so it should be fast and non-blocking. If the handler itself throws, its exception (with the original one attached as suppressed) is logged to `com.flower.events`, and otherwise ignored: it never affects the Flow or the remaining Event Functions.
 
 
 ## Startup validation and Step references

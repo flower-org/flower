@@ -19,13 +19,17 @@ public class EventFunctions {
     this.functions = functions;
   }
 
-  public List<EventFunctionContext> getFunctions(Object flowState, Object eventProfileState) {
+  public List<EventFunctionContext> getFunctions(
+      Object flowState, Object eventProfileState, String eventProfileName) {
     ObjectStateAccess eventProfileStateAccess =
         new ObjectStateAccess(eventProfileState, eventProfileStateAccessConfig);
     ObjectStateAccess flowStateAccess = new ObjectStateAccess(flowState, flowStateAccessConfig);
 
     return functions.stream()
-        .map(ef -> new EventFunctionContext(eventProfileStateAccess, flowStateAccess, ef))
+        .map(
+            ef ->
+                new EventFunctionContext(
+                    eventProfileStateAccess, flowStateAccess, ef, eventProfileName))
         .collect(Collectors.toList());
   }
 }
