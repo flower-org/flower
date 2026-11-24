@@ -1,5 +1,7 @@
 package com.flower.misc;
 
+import java.util.concurrent.CompletableFuture;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -20,8 +22,6 @@ import com.flower.conf.OutPrm;
 import com.flower.conf.ReturnValueOrException;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 
@@ -191,8 +191,8 @@ class InRetOrExceptionCatchesStepException {
 @FlowType(name = "InRetOrExceptionCatchesStepExceptionTransitThrows", firstStep = "step2")
 class InRetOrExceptionCatchesStepExceptionTransitThrows {
   @StepFunction(transit = "transit2")
-  public static ListenableFuture<String> step2() {
-    return Futures.immediateFailedFuture(new Exception("step2 Exception String"));
+  public static CompletableFuture<String> step2() {
+    return CompletableFuture.failedFuture(new Exception("step2 Exception String"));
   }
 
   @TransitFunction
@@ -209,8 +209,8 @@ class InRetOrExceptionCatchesStepExceptionTransitThrows {
   }
 
   @StepFunction(transit = "transit2")
-  public static ListenableFuture<String> step3() {
-    return Futures.immediateFuture("step3 String");
+  public static CompletableFuture<String> step3() {
+    return CompletableFuture.completedFuture("step3 String");
   }
 }
 
@@ -220,7 +220,7 @@ class OutPrmException {
 
   @SimpleStepFunction
   public static Transition step(@Out OutPrm<Integer> i, @Terminal Transition END) {
-    i.setOutFuture(Futures.immediateFailedFuture(ExceptionsTest.EXCEPTION));
+    i.setOutFuture(CompletableFuture.failedFuture(ExceptionsTest.EXCEPTION));
 
     return END;
   }
@@ -232,7 +232,7 @@ class InOutPrmException {
 
   @SimpleStepFunction
   public static Transition step(@InOut NullableInOutPrm<Integer> i, @Terminal Transition END) {
-    i.setOutFuture(Futures.immediateFailedFuture(ExceptionsTest.EXCEPTION));
+    i.setOutFuture(CompletableFuture.failedFuture(ExceptionsTest.EXCEPTION));
 
     return END;
   }

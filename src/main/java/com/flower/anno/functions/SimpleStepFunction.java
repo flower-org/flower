@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
  * StepFunction for transition purposes. Can NOT be referred by name by other StepFunctions as their
  * TransitFunction.
  *
- * <p>Function must be static. Function must return Transit or ListenableFuture&lt;Transit&gt;
+ * <p>Function must be static. Function must return Transit or CompletableFuture&lt;Transit&gt;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})

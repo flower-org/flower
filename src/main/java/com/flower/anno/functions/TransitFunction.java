@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 /**
  * TransitFunction (a.k.a. Transitioner, not to be confused with Transition) Function must be
- * static. Function must return Transit or ListenableFuture&lt;Transit&gt;
+ * static. Function must return Transit or CompletableFuture&lt;Transit&gt;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})

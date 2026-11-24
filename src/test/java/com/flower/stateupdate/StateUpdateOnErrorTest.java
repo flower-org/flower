@@ -1,5 +1,7 @@
 package com.flower.stateupdate;
 
+import java.util.concurrent.CompletableFuture;
+
 import com.flower.anno.event.EventFunction;
 import com.flower.anno.event.EventProfileContainer;
 import com.flower.anno.event.EventProfiles;
@@ -19,7 +21,6 @@ import com.flower.conf.OutPrm;
 import com.flower.conf.ReturnValueOrException;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nullable;
@@ -299,7 +300,7 @@ class TestStateChange6 {
     static Transition step(@Out OutPrm<String> outStr,
                      @Out OutPrm<String> outStr2,
                      @Terminal Transition end) {
-        outStr2.setOutFuture(Futures.immediateFailedFuture(new Exception("TEST_EXCEPTION")));
+        outStr2.setOutFuture(CompletableFuture.failedFuture(new Exception("TEST_EXCEPTION")));
         outStr.setOutValue("OUT");
         return end;
     }

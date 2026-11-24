@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 /**
  * Event Handler Function and its Binding to EventType-s. Function must be static. Function must
- * return void or ListenableFuture&lt;Void&gt;
+ * return void or CompletableFuture&lt;Void&gt;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})

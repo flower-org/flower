@@ -13,21 +13,19 @@ import com.flower.engine.function.ParameterType;
 import com.flower.engine.runner.event.EventParametersProvider;
 import com.flower.engine.runner.state.StateAccess;
 import com.flower.engine.runner.step.InternalTransition;
-import com.flower.utilities.LegacyFuturesTool;
+import com.flower.utilities.FuturesTool;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
 
 public class FunctionCallUtil {
   // ---------------- STEP FUNCTION ----------------
 
-  public static ListenableFuture<?> invokeStepFunction(
+  public static CompletableFuture<?> invokeStepFunction(
           FlowId flowId, StepFunctionCallState callState, FunctionCallContext callContext)
       throws Exception {
     // 1) Get Function parameters from Flow State
@@ -36,11 +34,11 @@ public class FunctionCallUtil {
 
     try {
       // 2) Call function
-      ListenableFuture<?> functionFuture =
+      CompletableFuture<?> functionFuture =
           rawInvokeFunction(callContext.function, functionCallParameters);
 
       // 3) Update Flow state with Output parameters
-      return LegacyFuturesTool.tryCatchAsync(functionFuture,
+      return FuturesTool.tryCatchAsync(functionFuture,
           functionReturnValue ->
               updateState(
                   callState.stateAccess,
@@ -60,9 +58,9 @@ public class FunctionCallUtil {
                 null,
                 callContext.getFlowStepInfo(),
                 true);
-            return Futures.immediateFailedFuture(t);
+            return CompletableFuture.failedFuture(t);
           },
-          MoreExecutors.directExecutor());
+          FuturesTool.directExecutor());
     } catch(Throwable t) {
       updateState(
           callState.stateAccess,
@@ -118,7 +116,7 @@ public class FunctionCallUtil {
 
   // ---------------- TRANSIT FUNCTION ----------------
 
-  public static ListenableFuture<InternalTransition> invokeTransitFunctionOnException(
+  public static CompletableFuture<InternalTransition> invokeTransitFunctionOnException(
       TransitFunctionExceptionCallState callState, FunctionCallContext callContext)
       throws Exception {
     // 1) Get Function parameters from Flow State
@@ -127,11 +125,11 @@ public class FunctionCallUtil {
 
     try {
       // 2) Call function
-      ListenableFuture<?> functionFuture =
+      CompletableFuture<?> functionFuture =
           rawInvokeFunction(callContext.function, functionParameterObjects);
 
       // 3) Update Flow state with Output parameters
-      return LegacyFuturesTool.tryCatchAsync(
+      return FuturesTool.tryCatchAsync(
           functionFuture,
           functionReturnValue ->
               updateTransitionState(
@@ -150,9 +148,9 @@ public class FunctionCallUtil {
                 null,
                 callContext.getFlowStepInfo(),
                 true);
-            return Futures.immediateFailedFuture(t);
+            return CompletableFuture.failedFuture(t);
           },
-          MoreExecutors.directExecutor());
+          FuturesTool.directExecutor());
     } catch(Throwable t) {
       updateTransitionState(
           callState.stateAccess,
@@ -165,7 +163,7 @@ public class FunctionCallUtil {
     }
   }
 
-  public static ListenableFuture<InternalTransition> invokeTransitFunction(
+  public static CompletableFuture<InternalTransition> invokeTransitFunction(
       TransitFunctionCallState callState, FunctionCallContext callContext) throws Exception {
     // 1) Get Function parameters from Flow State
     List<Object> functionParameterObjects =
@@ -173,11 +171,11 @@ public class FunctionCallUtil {
 
     try {
       // 2) Call function
-      ListenableFuture<?> functionFuture =
+      CompletableFuture<?> functionFuture =
           rawInvokeFunction(callContext.function, functionParameterObjects);
 
       // 3) Update Flow state with Output parameters
-      return LegacyFuturesTool.tryCatchAsync(
+      return FuturesTool.tryCatchAsync(
           functionFuture,
           functionReturnValue ->
               updateTransitionState(
@@ -196,9 +194,9 @@ public class FunctionCallUtil {
                 null,
                 callContext.getFlowStepInfo(),
                 true);
-            return Futures.immediateFailedFuture(t);
+            return CompletableFuture.failedFuture(t);
           },
-          MoreExecutors.directExecutor());
+          FuturesTool.directExecutor());
     } catch(Throwable t) {
       updateTransitionState(
           callState.stateAccess,
@@ -300,7 +298,7 @@ public class FunctionCallUtil {
 
   // ---------------- STEP-AND-TRANSIT FUNCTION ----------------
 
-  public static ListenableFuture<InternalTransition> invokeStepAndTransitFunction(
+  public static CompletableFuture<InternalTransition> invokeStepAndTransitFunction(
       FlowId flowId, StepAndTransitFunctionCallState callState, FunctionCallContext callContext)
       throws Exception {
     // 1) Get Function parameters from Flow State
@@ -309,11 +307,11 @@ public class FunctionCallUtil {
 
     try {
     // 2) Call function
-    ListenableFuture<?> functionFuture =
+    CompletableFuture<?> functionFuture =
         rawInvokeFunction(callContext.function, functionCallParameters);
 
     // 3) Update Flow state with Output parameters
-    return LegacyFuturesTool.tryCatchAsync(
+    return FuturesTool.tryCatchAsync(
         functionFuture,
         functionReturnValue ->
             updateTransitionState(
@@ -332,9 +330,9 @@ public class FunctionCallUtil {
               null,
               callContext.getFlowStepInfo(),
               true);
-          return Futures.immediateFailedFuture(t);
+          return CompletableFuture.failedFuture(t);
         },
-        MoreExecutors.directExecutor());
+        FuturesTool.directExecutor());
     } catch(Throwable t) {
       updateTransitionState(
           callState.stateAccess,
@@ -393,7 +391,7 @@ public class FunctionCallUtil {
 
   // ---------------- EVENT FUNCTION ----------------
 
-  public static ListenableFuture<Void> invokeEventFunction(
+  public static CompletableFuture<Void> invokeEventFunction(
       EventFunctionCallState callState,
       FunctionCallContext callContext,
       EventParametersProvider eventParametersProvider,
@@ -406,16 +404,16 @@ public class FunctionCallUtil {
             callState, callContext, eventParametersProvider, eventType, transition, flowException);
     try {
       // 2) Call function
-      ListenableFuture<?> functionFuture;
+      CompletableFuture<?> functionFuture;
 
       try {
         functionFuture = rawInvokeFunction(callContext.function, functionCallParameters);
       } catch (Throwable t) {
-        functionFuture = Futures.immediateFailedFuture(t);
+        functionFuture = CompletableFuture.failedFuture(t);
       }
 
       // 3) Update Flow state with Output parameters
-      return LegacyFuturesTool.tryCatchAsync(
+      return FuturesTool.tryCatchAsync(
           functionFuture,
           functionReturnValue ->
               updateEventState(
@@ -436,9 +434,9 @@ public class FunctionCallUtil {
                 null,
                 callContext.getFlowStepInfo(),
                 true);
-            return Futures.immediateFailedFuture(t);
+            return CompletableFuture.failedFuture(t);
           },
-          MoreExecutors.directExecutor());
+          FuturesTool.directExecutor());
     } catch(Throwable t) {
       updateEventState(
           callState.flowStateAccess,
@@ -553,16 +551,16 @@ public class FunctionCallUtil {
     return parameterValue;
   }
 
-  static ListenableFuture<?> rawInvokeFunction(Method function, List<Object> functionCallParameters)
+  static CompletableFuture<?> rawInvokeFunction(Method function, List<Object> functionCallParameters)
       throws Exception {
     // Call function
-    ListenableFuture<?> retFuture;
+    CompletableFuture<?> retFuture;
     try {
       Object retObj = function.invoke(null, functionCallParameters.toArray());
       retFuture =
-          (retObj instanceof ListenableFuture)
-              ? (ListenableFuture<?>) retObj
-              : Futures.immediateFuture(retObj);
+          (retObj instanceof CompletableFuture)
+              ? (CompletableFuture<?>) retObj
+              : CompletableFuture.completedFuture(retObj);
     } catch (IllegalAccessException | InvocationTargetException e) {
       throw getUnwrappedException(e);
     }
@@ -570,7 +568,7 @@ public class FunctionCallUtil {
     return retFuture;
   }
 
-  static ListenableFuture<?> updateState(
+  static CompletableFuture<?> updateState(
       StateAccess flowStateAccess,
       @Nullable String returnValueToFlowParameterName,
       List<FunctionCallParameter> functionParameters,
@@ -578,48 +576,56 @@ public class FunctionCallUtil {
       @Nullable Object returnValue,
       String flowStepInfo,
       boolean partial) {
-    return Futures.transformAsync(
+    return FuturesTool.transformAsync(
         waitForOutParams(functionParameters, functionParameterObjects),
         void_ -> {
-          // Flow State
-          updateState0(
-              flowStateAccess,
-              returnValueToFlowParameterName,
-              functionParameters,
-              functionParameterObjects,
-              returnValue,
-              flowStepInfo,
-              partial);
-          return Futures.immediateFuture(returnValue);
+          try {
+            // Flow State
+            updateState0(
+                flowStateAccess,
+                returnValueToFlowParameterName,
+                functionParameters,
+                functionParameterObjects,
+                returnValue,
+                flowStepInfo,
+                partial);
+          } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+          }
+          return CompletableFuture.completedFuture(returnValue);
         },
-        MoreExecutors.directExecutor());
+        FuturesTool.directExecutor());
   }
 
-  static ListenableFuture<InternalTransition> updateTransitionState(
+  static CompletableFuture<InternalTransition> updateTransitionState(
       StateAccess flowStateAccess,
       List<FunctionCallParameter> functionParameters,
       List<Object> functionParameterObjects,
       @Nullable InternalTransition transitionReturnValue,
       String flowStepInfo,
       boolean partial) {
-    return Futures.transformAsync(
+    return FuturesTool.transformAsync(
         waitForOutParams(functionParameters, functionParameterObjects),
         void_ -> {
-          // Flow State
-          updateState0(
-              flowStateAccess,
-              null,
-              functionParameters,
-              functionParameterObjects,
-              transitionReturnValue,
-              flowStepInfo,
-              partial);
-          return Futures.immediateFuture(transitionReturnValue);
+          try {
+            // Flow State
+            updateState0(
+                flowStateAccess,
+                null,
+                functionParameters,
+                functionParameterObjects,
+                transitionReturnValue,
+                flowStepInfo,
+                partial);
+          } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+          }
+          return CompletableFuture.completedFuture(transitionReturnValue);
         },
-        MoreExecutors.directExecutor());
+        FuturesTool.directExecutor());
   }
 
-  static ListenableFuture<Void> updateEventState(
+  static CompletableFuture<Void> updateEventState(
       StateAccess flowStateAccess,
       StateAccess eventProfileStateAccess,
       List<FunctionCallParameter> functionParameters,
@@ -627,18 +633,22 @@ public class FunctionCallUtil {
       @Nullable Object returnValue,
       String flowStepInfo,
       boolean partial) {
-    return Futures.transformAsync(
+    return FuturesTool.transformAsync(
         waitForOutParams(functionParameters, functionParameterObjects),
         void_ -> {
-          // Event Profile State
-          updateState0(
-              eventProfileStateAccess,
-              null,
-              functionParameters,
-              functionParameterObjects,
-              returnValue,
-              flowStepInfo,
-              partial);
+          try {
+            // Event Profile State
+            updateState0(
+                eventProfileStateAccess,
+                null,
+                functionParameters,
+                functionParameterObjects,
+                returnValue,
+                flowStepInfo,
+                partial);
+          } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+          }
 
           //TODO: I don't think this should be here, Event shouldn't be able to update flow state.
           // commenting out for now.
@@ -651,14 +661,14 @@ public class FunctionCallUtil {
               returnValue,
               flowStepInfo,
               partial);*/
-          return Futures.immediateVoidFuture();
+          return CompletableFuture.completedFuture(null);
         },
-        MoreExecutors.directExecutor());
+        FuturesTool.directExecutor());
   }
 
-  static ListenableFuture<Void> waitForOutParams(
+  static CompletableFuture<Void> waitForOutParams(
       List<FunctionCallParameter> functionParameters, List<Object> functionParameterObjects) {
-    List<ListenableFuture<?>> futureList = new ArrayList<>();
+    List<CompletableFuture<?>> futureList = new ArrayList<>();
 
     int i = 0;
     for (FunctionCallParameter callParameter : functionParameters) {
@@ -673,9 +683,9 @@ public class FunctionCallUtil {
     }
 
     if (futureList.isEmpty()) {
-      return Futures.immediateVoidFuture();
+      return CompletableFuture.completedFuture(null);
     } else {
-      return Futures.whenAllComplete(futureList).call(() -> null, MoreExecutors.directExecutor());
+      return FuturesTool.whenAllCompleteCall(futureList, () -> null, FuturesTool.directExecutor());
     }
   }
 

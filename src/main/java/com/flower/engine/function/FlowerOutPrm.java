@@ -1,12 +1,12 @@
 package com.flower.engine.function;
 
 import com.flower.conf.OutPrm;
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import java.util.Optional;
 
 public class FlowerOutPrm<T> implements OutPrm<T> {
   Optional<T> value = Optional.empty();
-  Optional<ListenableFuture<T>> valueFuture = Optional.empty();
+  Optional<CompletableFuture<T>> valueFuture = Optional.empty();
 
   @Override
   public void setOutValue(T value) {
@@ -15,7 +15,7 @@ public class FlowerOutPrm<T> implements OutPrm<T> {
   }
 
   @Override
-  public void setOutFuture(ListenableFuture<T> valueFuture) {
+  public void setOutFuture(CompletableFuture<T> valueFuture) {
     this.value = Optional.empty();
     this.valueFuture = Optional.ofNullable(valueFuture);
   }
@@ -24,7 +24,7 @@ public class FlowerOutPrm<T> implements OutPrm<T> {
     return value;
   }
 
-  public Optional<ListenableFuture<T>> getOptFuture() {
+  public Optional<CompletableFuture<T>> getOptFuture() {
     return valueFuture;
   }
 }

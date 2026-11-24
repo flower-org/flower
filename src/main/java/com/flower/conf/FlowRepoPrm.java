@@ -1,6 +1,6 @@
 package com.flower.conf;
 
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
 
 /**
@@ -11,5 +11,5 @@ import javax.annotation.Nullable;
 public interface FlowRepoPrm<T> {
   //TODO: return FlowFuture instead?
   @Nullable
-  ListenableFuture<T> getFlowFuture(FlowId flowId);
+  CompletableFuture<T> getFlowFuture(FlowId flowId);
 }

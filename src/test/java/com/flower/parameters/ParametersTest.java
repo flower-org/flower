@@ -1,5 +1,7 @@
 package com.flower.parameters;
 
+import java.util.concurrent.CompletableFuture;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.flower.anno.flow.FlowType;
@@ -18,7 +20,6 @@ import com.flower.conf.NullableInOutPrm;
 import com.flower.conf.OutPrm;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.jupiter.api.Assertions;
@@ -111,7 +112,7 @@ class P_TestFlow2 {
   @StepFunction(transit = "transit")
   static void step(@InOut NullableInOutPrm<Integer> i) {
     System.out.println("Step" + i.getInValue());
-    i.setOutFuture(Futures.immediateFuture(5));
+    i.setOutFuture(CompletableFuture.completedFuture(5));
   }
 
   @TransitFunction
@@ -143,7 +144,7 @@ class P_TestFlow4 {
 
   @StepFunction(transit = "transit")
   static void step(@Out OutPrm<Integer> i) {
-    i.setOutFuture(Futures.immediateFuture(5));
+    i.setOutFuture(CompletableFuture.completedFuture(5));
   }
 
   @TransitFunction

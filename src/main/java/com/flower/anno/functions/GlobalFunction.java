@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 /**
  * Globally reusable function. Function must be static. Function can return an object or a
- * ListenableFuture. Steps and transitioners can be declared as @StepCall and @TransitCall-s -
+ * CompletableFuture. Steps and transitioners can be declared as @StepCall and @TransitCall-s -
  * references to those functions
  */
 @Retention(RetentionPolicy.RUNTIME)

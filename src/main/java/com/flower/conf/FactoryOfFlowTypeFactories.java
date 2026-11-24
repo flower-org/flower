@@ -7,7 +7,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import javax.annotation.Nullable;
 
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.StringUtils;
 
 public class FactoryOfFlowTypeFactories<T> implements FlowRepoPrm<T> {
@@ -52,8 +52,8 @@ public class FactoryOfFlowTypeFactories<T> implements FlowRepoPrm<T> {
 
   @Override
   @Nullable
-  public ListenableFuture<T> getFlowFuture(FlowId flowId) {
+  public CompletableFuture<T> getFlowFuture(FlowId flowId) {
     //TODO: implement type safety
-    return (ListenableFuture<T>)flowRunner.getFlowFuture(flowId);
+    return (CompletableFuture<T>)flowRunner.getFlowFuture(flowId);
   }
 }

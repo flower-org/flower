@@ -1,5 +1,8 @@
 package com.flower.flows;
 
+import java.util.concurrent.CompletableFuture;
+import com.flower.utilities.FuturesTool;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.flower.anno.flow.FlowType;
@@ -19,9 +22,6 @@ import com.flower.conf.FlowRepoPrm;
 import com.flower.conf.OutPrm;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Assertions;
@@ -110,19 +110,19 @@ class F_ParentFlow2 {
   }
 
   @SimpleStepFunction
-  static ListenableFuture<Transition> waitStep(
+  static CompletableFuture<Transition> waitStep(
           @Terminal Transition end, @FlowRepo FlowRepoPrm<F_ChildFlow2> flowRepo, @In FlowId childFlowId) {
     System.out.println("F_ParentFlow2 waitStep start");
     System.out.println("F_ParentFlow2 waiting for " + childFlowId);
 
-    ListenableFuture<F_ChildFlow2> future = flowRepo.getFlowFuture(childFlowId);
-    return Futures.transform(
+    CompletableFuture<F_ChildFlow2> future = flowRepo.getFlowFuture(childFlowId);
+    return FuturesTool.transform(
         future,
         flow2 -> {
           System.out.println("F_ParentFlow2 waitStep end message [" + flow2.message + "]");
           return end;
         },
-        MoreExecutors.directExecutor());
+        FuturesTool.directExecutor());
   }
 }
 
@@ -149,18 +149,18 @@ class F_ChildFlow2 {
 @FlowType(firstStep = "step")
 class F_ParentFlow {
   @SimpleStepFunction
-  static ListenableFuture<Transition> step(
+  static CompletableFuture<Transition> step(
       @Terminal Transition end,
       @FlowFactory FlowFactoryPrm<F_ChildFlow> flowFactory)
       throws ExecutionException, InterruptedException {
     System.out.println("F_ParentFlow step start");
 
-    return Futures.transform(flowFactory.runChildFlow(new F_ChildFlow()).getFuture(),
+    return FuturesTool.transform(flowFactory.runChildFlow(new F_ChildFlow()).getFuture(),
         cfr -> {
           System.out.println("F_ParentFlow step end");
           return end;
         },
-        MoreExecutors.directExecutor());
+        FuturesTool.directExecutor());
   }
 }
 

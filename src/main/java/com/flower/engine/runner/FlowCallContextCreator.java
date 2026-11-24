@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.commons.lang3.StringUtils;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -47,7 +47,7 @@ public class FlowCallContextCreator {
   // ----------- Flow call context -----------
 
   public FlowCallContext createFlowCallContext(
-      ListeningScheduledExecutorService scheduler,
+      ScheduledExecutorService scheduler,
       FlowTypeRecord flowTypeRecord,
       Map<Class<?>, Map<String, GlobalFunctionRecord>> globalFunctionsByContainerAndName,
       Map<Class<?>, EventProfileContainerRecord> eventProfilesByType,

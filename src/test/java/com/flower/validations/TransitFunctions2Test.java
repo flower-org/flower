@@ -1,5 +1,7 @@
 package com.flower.validations;
 
+import java.util.concurrent.CompletableFuture;
+
 import com.flower.anno.flow.FlowType;
 import com.flower.anno.flow.GlobalFunctionContainer;
 import com.flower.anno.functions.GlobalFunction;
@@ -9,8 +11,6 @@ import com.flower.anno.functions.TransitCall;
 import com.flower.anno.functions.TransitFunction;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.jupiter.api.Test;
 
 public class TransitFunctions2Test {
@@ -100,16 +100,16 @@ class T2_TestFlow3 {
   static void step2() {}
 
   @TransitFunction()
-  static ListenableFuture<Transition> transit() {
-    return Futures.immediateFuture(null);
+  static CompletableFuture<Transition> transit() {
+    return CompletableFuture.completedFuture(null);
   }
 }
 
 @FlowType(name = "Test", firstStep = "transit")
 class T2_TestFlow4 {
   @SimpleStepFunction
-  static ListenableFuture<Transition> transit() {
-    return Futures.immediateFuture(null);
+  static CompletableFuture<Transition> transit() {
+    return CompletableFuture.completedFuture(null);
   }
 }
 
@@ -121,8 +121,8 @@ class GlobalFunctions2 {
   }
 
   @GlobalFunction
-  static ListenableFuture<Transition> global2() {
-    return Futures.immediateFuture(null);
+  static CompletableFuture<Transition> global2() {
+    return CompletableFuture.completedFuture(null);
   }
 }
 

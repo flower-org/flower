@@ -5,7 +5,7 @@ import com.flower.conf.StepInfoPrm;
 import com.flower.engine.runner.event.EventContext;
 import com.flower.engine.runner.event.EventParametersProvider;
 import com.flower.engine.runner.event.EventRunner;
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
@@ -19,7 +19,7 @@ public interface StepCallContext {
 
   List<Pair<String, String>> getFlowRepos();
 
-  ListenableFuture<InternalTransition> call(
+  CompletableFuture<InternalTransition> call(
       FlowId flowId,
       Object flowState,
       EventRunner eventRunner,

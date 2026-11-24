@@ -1,12 +1,12 @@
 package com.flower.recipes.batch;
 
+import java.util.concurrent.CompletableFuture;
+
 import com.flower.anno.flow.FlowType;
 import com.flower.anno.functions.StepFunction;
 import com.flower.anno.params.common.In;
 import com.flower.conf.FlowExec;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -48,12 +48,12 @@ class TestActionFlowWithRetries extends ActionFlowWithRetries<String, String> {
     }
 
     @StepFunction(transit = "retry")
-    public static ListenableFuture<Void> action(@In Integer currentAttempt) {
+    public static CompletableFuture<Void> action(@In Integer currentAttempt) {
         if (currentAttempt == 3) {
             //Success
             return null;
         } else {
-            return Futures.immediateFailedFuture(new Exception("Test Exception. Failure #" + currentAttempt));
+            return CompletableFuture.failedFuture(new Exception("Test Exception. Failure #" + currentAttempt));
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.flower.parameters;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 import com.flower.anno.flow.FlowType;
 import com.flower.anno.flow.State;
 import com.flower.anno.functions.StepFunction;
@@ -11,7 +13,6 @@ import com.flower.conf.FlowFuture;
 import com.flower.conf.OutPrm;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -27,7 +28,7 @@ public class ExecutorParameterTest {
         flower.initialize();
 
         FlowFuture<P_TestExecutorFlow> execFlow = flower.getFlowExec(P_TestExecutorFlow.class).runFlow(new P_TestExecutorFlow());
-        assertTrue(execFlow.getFuture().get().executor instanceof ListeningScheduledExecutorService);
+        assertTrue(execFlow.getFuture().get().executor instanceof ScheduledExecutorService);
     }
 }
 

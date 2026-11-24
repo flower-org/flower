@@ -1,9 +1,7 @@
 package com.flower.utilities.messagepassing;
 
-// TODO(CompletableFuture migration): reinstate after Phases 3+4. This test runs the queue inside real
-//  flows, whose step functions must still return ListenableFuture until the engine is migrated, while
-//  the queue already returns CompletableFuture. Plain coverage lives in SimpleMessageQueueUnitTest.
-/*
+import java.util.concurrent.CompletableFuture;
+import com.flower.utilities.FuturesTool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -19,9 +17,6 @@ import com.flower.conf.FlowFuture;
 import com.flower.conf.InOutPrm;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -90,7 +85,7 @@ public class SimpleMessageQueueTest {
         }
 
         @SimpleStepFunction
-        public static ListenableFuture<Transition> PROCESS_MESSAGE(@In SimpleMessageSource<Integer> messageSource,
+        public static CompletableFuture<Transition> PROCESS_MESSAGE(@In SimpleMessageSource<Integer> messageSource,
                                                  @In AtomicInteger processedCount,
                                                  @In int flowNumber,
                                                  @InOut(throwIfNull = true) InOutPrm<Integer> processedByMe,
@@ -113,15 +108,14 @@ public class SimpleMessageQueueTest {
 
             if (processedCount.get() >= MESSAGE_COUNT) {
                 System.out.println(flowNumber + " Flow DONE. Processed: " + processedCount.get() + "; By me: " + processedByMeVal);
-                return Futures.immediateFuture(END);
+                return CompletableFuture.completedFuture(END);
             } else {
                 System.out.println(flowNumber + " Flow Gon'sleep. Processed: " + processedCount.get() + "; By me: " + processedByMeVal);
-                return Futures.transform(messageSource.getMessageListener(),
+                return FuturesTool.transform(messageSource.getMessageListener(),
                     unused_ -> PROCESS_MESSAGE,
-                    MoreExecutors.directExecutor()
+                    FuturesTool.directExecutor()
                 );
             }
         }
     }
 }
-*/

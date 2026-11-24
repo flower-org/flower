@@ -38,7 +38,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import javax.annotation.Nullable;
 
 public class FunctionRecord {
@@ -61,12 +64,29 @@ public class FunctionRecord {
         flowType, genericReturnValueType, method.getAnnotation(Nullable.class) != null);
   }
 
+  /**
+   * Asynchronous functions must return {@link CompletableFuture}; any other future type (e.g.
+   * Guava ListenableFuture) would otherwise be treated as a plain synchronous return value.
+   */
+  static void validateAsyncReturnType(Method method) {
+    Class<?> returnType = method.getReturnType();
+    if ((Future.class.isAssignableFrom(returnType)
+            || CompletionStage.class.isAssignableFrom(returnType))
+        && !CompletableFuture.class.isAssignableFrom(returnType)) {
+      throw new IllegalStateException(
+          String.format(
+              "Function return type [%s] is not supported: asynchronous functions must return [%s]. Function Method [%s]",
+              returnType.getName(), CompletableFuture.class.getName(), method));
+    }
+  }
+
   private List<FunctionParameterRecord> loadFunctionSignature(
       @Nullable Class<?> flowType,
       Method method,
       FunctionType functionType,
       @Nullable EventType[] eventTypes) {
     if (eventTypes == null) eventTypes = new EventType[] {};
+    validateAsyncReturnType(method);
 
     List<FunctionParameterRecord> parameters = new ArrayList<>();
     String physicalFunctionName =

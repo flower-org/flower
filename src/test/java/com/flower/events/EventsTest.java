@@ -1,5 +1,7 @@
 package com.flower.events;
 
+import java.util.concurrent.CompletableFuture;
+
 import com.flower.anno.event.EventCall;
 import com.flower.anno.event.EventFunction;
 import com.flower.anno.event.EventProfileContainer;
@@ -29,7 +31,6 @@ import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import javax.annotation.Nullable;
 
-import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -76,7 +77,7 @@ public class EventsTest {
     FlowFuture<TestExceptionFlow> flowFuture = flowExec.runFlow(testFlow);
     System.out.println("Flow created. Id: " + flowFuture.getFlowId());
 
-    ListenableFuture<TestExceptionFlow> flowListenableFuture = flowFuture.getFuture();
+    CompletableFuture<TestExceptionFlow> flowListenableFuture = flowFuture.getFuture();
     Exception exc = null;
     try {
       flowListenableFuture.get();

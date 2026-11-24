@@ -302,6 +302,29 @@ public class FuturesTool {
     return retFuture;
   }
 
+  /**
+   * Invokes {@code callable} and returns the future it produces. Exceptions thrown by {@code
+   * callable} (including checked ones) and a null return value are converted into a failed future,
+   * mirroring how Guava treats exceptions thrown from an {@code AsyncFunction}/{@code AsyncCallable}.
+   */
+  public static <V> CompletableFuture<V> callAsync(
+      Callable<? extends CompletableFuture<? extends V>> callable) {
+    CompletableFuture<? extends V> output;
+    try {
+      output = callable.call();
+    } catch (Throwable e) {
+      return CompletableFuture.failedFuture(e);
+    }
+    if (output == null) {
+      return CompletableFuture.failedFuture(
+          new NullPointerException(
+              "Async callable returned null instead of a CompletableFuture: " + callable));
+    }
+    CompletableFuture<V> result = new CompletableFuture<>();
+    propagate(output, result);
+    return result;
+  }
+
   public static <I, O, X extends Throwable> CompletableFuture<O> tryCatch(
       CompletableFuture<I> input,
       Function<? super I, ? extends O> function,

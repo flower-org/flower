@@ -15,9 +15,7 @@ import com.flower.engine.runner.event.EventRunner;
 import com.flower.engine.runner.step.InternalTransition;
 import com.flower.engine.runner.step.StepCallContext;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.flower.utilities.FuturesTool;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -25,9 +23,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.Nullable;
 
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import org.apache.commons.lang3.tuple.Pair;
 
 public class FlowCallContext implements EventRunner {
@@ -38,7 +37,7 @@ public class FlowCallContext implements EventRunner {
 
   final String flowName;
   final Class<?> flowType;
-  final ListeningScheduledExecutorService scheduler;
+  final ScheduledExecutorService scheduler;
 
   public FlowCallContext(
       String flowName,
@@ -46,7 +45,7 @@ public class FlowCallContext implements EventRunner {
       Map<String, StepCallContext> stepCalls,
       String firstStepName,
       Map<Class<?>, EventProfileForFlowTypeCallContext> eventContexts,
-      ListeningScheduledExecutorService scheduler) {
+      ScheduledExecutorService scheduler) {
     this.flowName = flowName;
     this.flowType = flowType;
     this.stepCalls = stepCalls;
@@ -86,7 +85,7 @@ public class FlowCallContext implements EventRunner {
   }
 
   @Override
-  public ListenableFuture<Void> runEvents(
+  public CompletableFuture<Void> runEvents(
       EventType eventType,
       EventContext eventContext,
       EventParametersProvider eventParametersProvider,
@@ -110,11 +109,12 @@ public class FlowCallContext implements EventRunner {
         eventFunctionList, eventParametersProvider, eventType, transition, flowException);
   }
 
-  <T> Pair<FlowImpl<T>, ListenableFuture<InternalTransition>> runFirstStep(FlowImpl<T> flow) {
+  <T> Pair<FlowImpl<T>, CompletableFuture<InternalTransition>> runFirstStep(FlowImpl<T> flow) {
     return Pair.of(
         flow,
-        FluentFuture.from(runEvents(EventType.BEFORE_FLOW, flow, flow, null, null))
-            .transformAsync(
+        FuturesTool.transformAsync(
+            FuturesTool.transformAsync(
+                runEvents(EventType.BEFORE_FLOW, flow, flow, null, null),
                 void_ -> {
                   // TODO: some duplication here?
                   flow.setCurrentStep(firstStepName);
@@ -124,31 +124,32 @@ public class FlowCallContext implements EventRunner {
                   return runEvents(EventType.BEFORE_STEP, flow, flow, null, null);
                 },
                 //important to context switch here, to untie the calling thread, initiating the flow execution.
-                scheduler)
-            .transformAsync(void_ -> runStep(flow, firstStepName), scheduler));
+                scheduler),
+            void_ -> runStep(flow, firstStepName),
+            scheduler));
   }
 
   StepCallContext getStep(String stepName) {
     return Preconditions.checkNotNull(stepCalls.get(stepName));
   }
 
-  ListenableFuture<InternalTransition> runStep(FlowImpl flow, String stepName) {
+  CompletableFuture<InternalTransition> runStep(FlowImpl flow, String stepName) {
     try {
       StepCallContext stepCallContext = getStep(stepName);
 
-      return FluentFuture.from(runEvents(EventType.BEFORE_STEP_ITERATION, flow, flow, null, null))
-          .transformAsync(
+      return FuturesTool.transformAsync(
+          FuturesTool.transformAsync(
+              runEvents(EventType.BEFORE_STEP_ITERATION, flow, flow, null, null),
               void_ -> stepCallContext.call(flow.getId(), flow.getState(), this, flow, flow),
-              scheduler)
-          .transformAsync(
-              t ->
-                  Futures.transform(
-                      runEvents(EventType.AFTER_STEP_ITERATION, flow, flow, null, null),
-                      void_ -> t,
-                      scheduler),
-              scheduler);
+              scheduler),
+          t ->
+              FuturesTool.transform(
+                  runEvents(EventType.AFTER_STEP_ITERATION, flow, flow, null, null),
+                  void_ -> t,
+                  scheduler),
+          scheduler);
     } catch (Throwable t) {
-      return Futures.immediateFailedFuture(t);
+      return CompletableFuture.failedFuture(t);
     }
   }
 }

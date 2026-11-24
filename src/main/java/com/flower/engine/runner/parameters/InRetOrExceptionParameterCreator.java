@@ -16,7 +16,7 @@ import com.flower.engine.runner.state.StateAccessConfig;
 import com.flower.engine.runner.step.InternalTransition;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.lang.reflect.Method;
@@ -47,7 +47,7 @@ public class InRetOrExceptionParameterCreator extends ParameterCreator {
 
     Type genericReturnType = stepFunctionReturnValue.genericReturnValueType;
     if (genericReturnType instanceof ParameterizedType) {
-      if (((ParameterizedType) genericReturnType).getRawType().equals(ListenableFuture.class)) {
+      if (((ParameterizedType) genericReturnType).getRawType().equals(CompletableFuture.class)) {
         genericReturnType = ((ParameterizedType) genericReturnType).getActualTypeArguments()[0];
       }
     }
@@ -113,7 +113,7 @@ public class InRetOrExceptionParameterCreator extends ParameterCreator {
 
     Type genericReturnType = stepFunctionReturnValue.genericReturnValueType;
     if (genericReturnType instanceof ParameterizedType) {
-      if (((ParameterizedType) genericReturnType).getRawType().equals(ListenableFuture.class)) {
+      if (((ParameterizedType) genericReturnType).getRawType().equals(CompletableFuture.class)) {
         genericReturnType = ((ParameterizedType) genericReturnType).getActualTypeArguments()[0];
       }
     }

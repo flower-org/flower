@@ -13,13 +13,9 @@ import com.flower.engine.FlowerId;
 import com.flower.engine.runner.step.InternalTransition;
 import com.flower.engine.runner.step.StepCallContext;
 import com.flower.utilities.FlowerException;
-import com.flower.utilities.LegacyFutureCombiner;
-import com.flower.utilities.LegacyFuturesTool;
+import com.flower.utilities.FutureCombiner;
+import com.flower.utilities.FuturesTool;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 
 import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
@@ -27,10 +23,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.util.concurrent.SettableFuture;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -52,7 +49,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   final Class<T> flowType;
   final FlowCallContext flowCallContext;
   final FlowExecCallback flowExecCallback;
-  final ListeningScheduledExecutorService scheduler;
+  final ScheduledExecutorService scheduler;
   @Nullable final StateSerializer<T> stateSerializer;
 
   public FlowExecImpl(
@@ -60,7 +57,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
       Class<T> flowType,
       FlowCallContext flowCallContext,
       FlowExecCallback flowExecCallback,
-      ListeningScheduledExecutorService scheduler,
+      ScheduledExecutorService scheduler,
       @Nullable StateSerializer<T> stateSerializer) {
     this.flowRunner = flowRunner;
     this.flowType = flowType;
@@ -109,17 +106,17 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     }
 
     FlowImpl<T> flow_ = null;
-    ListenableFuture<T> checkReturnValue;
+    CompletableFuture<T> checkReturnValue;
     try {
       final FlowImpl<T> flow = flow_ = flowCallContext.createFlow(flowId, flowState);
 
-      final Pair<FlowImpl<T>, ListenableFuture<InternalTransition>> flowContextPair =
+      final Pair<FlowImpl<T>, CompletableFuture<InternalTransition>> flowContextPair =
           flowCallContext.runFirstStep(flow);
 
       final FlowImpl<T> flowInstance = flowContextPair.getLeft();
-      final ListenableFuture<InternalTransition> firstStepCallFuture = flowContextPair.getRight();
+      final CompletableFuture<InternalTransition> firstStepCallFuture = flowContextPair.getRight();
 
-      SettableFuture<T> settableFlowFuture = SettableFuture.create();
+      CompletableFuture<T> settableFlowFuture = new CompletableFuture<>();
       //Recursive flow execution routine, executes the flow
       transitionToNextStep(
           flowInstance,
@@ -128,44 +125,42 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
           flowCallContext.firstStepName,
           settableFlowFuture);
 
-      ListenableFuture<T> flowFuture =
-          FluentFuture.from(settableFlowFuture)
-              .transform(
-                  t -> {
-                    flow.setStepInfo(null);
+      CompletableFuture<T> flowFuture =
+          FuturesTool.transform(
+              settableFlowFuture,
+              t -> {
+                flow.setStepInfo(null);
+                CompletableFuture<Void> unused =
                     flowCallContext.runEvents(EventType.AFTER_FLOW, flow, flow, null, null);
-                    return t;
-                  },
-                  scheduler);
+                return t;
+              },
+              scheduler);
 
       checkReturnValue =
-          FluentFuture.from(flowFuture)
-              .transformAsync(f -> flowFuture, scheduler)
-              .catchingAsync(
-                  Throwable.class,
-                  t -> {
-                    flow.setStepInfo(null);
+          FuturesTool.catchingAsync(
+              FuturesTool.transformAsync(flowFuture, f -> flowFuture, scheduler),
+              Throwable.class,
+              t -> {
+                flow.setStepInfo(null);
+                CompletableFuture<Void> unused =
                     flowCallContext.runEvents(EventType.FLOW_EXCEPTION, flow, flow, null, t);
-                    return flowFuture;
-                  },
-                  scheduler);
+                return flowFuture;
+              },
+              scheduler);
 
       flowExecCallback.flowStarted(flowId, checkReturnValue);
 
-      Futures.whenAllComplete(checkReturnValue)
-          .call(
-              () -> {
-                flowExecCallback.flowFinished(flowId);
-                return null;
-              },
-              scheduler);
+      CompletableFuture<Void> unusedFinished =
+          FuturesTool.whenAllCompleteRun(
+              List.of(checkReturnValue), () -> flowExecCallback.flowFinished(flowId), scheduler);
 
       return new SimpleFlowFuture<>(flowId, checkReturnValue);
     } catch (Throwable t) {
       if (flow_ != null) {
-        flowCallContext.runEvents(EventType.FLOW_EXCEPTION, flow_, flow_, null, t);
+        CompletableFuture<Void> unused =
+            flowCallContext.runEvents(EventType.FLOW_EXCEPTION, flow_, flow_, null, t);
       }
-      return new SimpleFlowFuture<>(flowId, Futures.immediateFailedFuture(t));
+      return new SimpleFlowFuture<>(flowId, CompletableFuture.failedFuture(t));
     }
   }
 
@@ -263,20 +258,22 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return String.format("%s %s%s%s %s{{%s}}", left, FLOW_REPO_LINK_BEGIN, note, FLOW_REPO_LINK_END, right, right);
   }
 
-  ListenableFuture<T> runEventsForLastStep(FlowImpl<T> flowInstance) {
-    return FluentFuture.from(
-            flowCallContext.runEvents(EventType.AFTER_STEP, flowInstance, flowInstance, null, null))
-        .transform(void_ -> flowInstance.getState(), scheduler);
+  CompletableFuture<T> runEventsForLastStep(FlowImpl<T> flowInstance) {
+    return FuturesTool.transform(
+        flowCallContext.runEvents(EventType.AFTER_STEP, flowInstance, flowInstance, null, null),
+        void_ -> flowInstance.getState(),
+        scheduler);
   }
 
   void transitionToNextStep(
       FlowImpl<T> flowInstance,
-      ListenableFuture<InternalTransition> stepCallFuture,
+      CompletableFuture<InternalTransition> stepCallFuture,
       String flowTypeName,
       String stepName,
-      SettableFuture<T> settableFuture) {
-    Futures.whenAllComplete(stepCallFuture)
-        .run(
+      CompletableFuture<T> settableFuture) {
+    CompletableFuture<Void> unused =
+        FuturesTool.whenAllCompleteRun(
+            List.of(stepCallFuture),
             () -> {
               try {
                 InternalTransition transition = stepCallFuture.get();
@@ -292,8 +289,8 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
                     Duration delay = transition.getDelay();
 
                     // Flow finished after a delay
-                    LegacyFuturesTool.assignSettableFuture(
-                        LegacyFutureCombiner.delayExecutionAsync(
+                    FuturesTool.assignSettableFuture(
+                        FutureCombiner.delayExecutionAsync(
                             scheduler,
                             delay.toNanos(),
                             TimeUnit.NANOSECONDS,
@@ -302,34 +299,46 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
                         scheduler);
                   } else {
                     // Flow finished
-                    LegacyFuturesTool.assignSettableFuture(
+                    FuturesTool.assignSettableFuture(
                         runEventsForLastStep(flowInstance), settableFuture, scheduler);
                   }
                 } else {
                   transitionToNextStep0(flowInstance, transition, settableFuture);
                 }
               } catch (ExecutionException e) {
-                settableFuture.setException(e.getCause() != null ? e.getCause() : e);
+                settableFuture.completeExceptionally(e.getCause() != null ? e.getCause() : e);
               } catch (Throwable t) {
-                settableFuture.setException(t);
+                settableFuture.completeExceptionally(t);
               }
             },
             scheduler);
   }
 
   void transitionToNextStep0(
-      FlowImpl<T> flowInstance, InternalTransition transition, SettableFuture<T> settableFuture) {
+      FlowImpl<T> flowInstance, InternalTransition transition, CompletableFuture<T> settableFuture) {
     if (transition.getDelay() != null) {
       Duration delay = transition.getDelay();
-      LegacyFutureCombiner.delayExecutionAsync(
-          scheduler,
-          delay.toNanos(),
-          TimeUnit.NANOSECONDS,
-          () -> {
-            runNextStep(
-                flowInstance, Preconditions.checkNotNull(transition.getStepName()), settableFuture);
-            return null;
-          });
+      CompletableFuture<Void> delayedStep =
+          FutureCombiner.delayExecution(
+              scheduler,
+              delay.toNanos(),
+              TimeUnit.NANOSECONDS,
+              () -> {
+                runNextStep(
+                    flowInstance,
+                    Preconditions.checkNotNull(transition.getStepName()),
+                    settableFuture);
+                return null;
+              });
+      // If the delayed step couldn't be started (scheduler rejection, exception in runNextStep),
+      // fail the flow instead of leaving it hanging.
+      CompletableFuture<?> unused =
+          delayedStep.whenComplete(
+              (v, t) -> {
+                if (t != null) {
+                  settableFuture.completeExceptionally(FuturesTool.unwrap(t));
+                }
+              });
     } else {
       runNextStep(
           flowInstance, Preconditions.checkNotNull(transition.getStepName()), settableFuture);
@@ -337,28 +346,28 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   }
 
   void runNextStep(
-      FlowImpl<T> flowInstance, String nextStepName, SettableFuture<T> settableFuture) {
+      FlowImpl<T> flowInstance, String nextStepName, CompletableFuture<T> settableFuture) {
     String currentStepName = flowInstance.getCurrentStep();
 
-    ListenableFuture<InternalTransition> stepCallFuture;
+    CompletableFuture<InternalTransition> stepCallFuture;
     // Step changed
     if (!currentStepName.equals(nextStepName)) {
+      CompletableFuture<Void> beforeStep =
+          FuturesTool.transformAsync(
+              flowCallContext.runEvents(
+                  EventType.AFTER_STEP, flowInstance, flowInstance, null, null),
+              void_ -> {
+                // TODO: some duplication here?
+                flowInstance.setCurrentStep(nextStepName);
+                StepInfoPrm stepInfo = flowCallContext.getStep(nextStepName).getStepInfo();
+                flowInstance.setStepInfo(stepInfo);
+                return flowCallContext.runEvents(
+                    EventType.BEFORE_STEP, flowInstance, flowInstance, null, null);
+              },
+              scheduler);
       stepCallFuture =
-          FluentFuture.from(
-                  flowCallContext.runEvents(
-                      EventType.AFTER_STEP, flowInstance, flowInstance, null, null))
-              .transformAsync(
-                  void_ -> {
-                    // TODO: some duplication here?
-                    flowInstance.setCurrentStep(nextStepName);
-                    StepInfoPrm stepInfo = flowCallContext.getStep(nextStepName).getStepInfo();
-                    flowInstance.setStepInfo(stepInfo);
-                    return flowCallContext.runEvents(
-                        EventType.BEFORE_STEP, flowInstance, flowInstance, null, null);
-                  },
-                  scheduler)
-              .transformAsync(
-                  void_ -> flowCallContext.runStep(flowInstance, nextStepName), scheduler);
+          FuturesTool.transformAsync(
+              beforeStep, void_ -> flowCallContext.runStep(flowInstance, nextStepName), scheduler);
     } else {
       stepCallFuture = flowCallContext.runStep(flowInstance, nextStepName);
     }

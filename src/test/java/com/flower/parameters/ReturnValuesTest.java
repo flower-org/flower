@@ -1,5 +1,7 @@
 package com.flower.parameters;
 
+import java.util.concurrent.CompletableFuture;
+
 import com.flower.anno.flow.FlowType;
 import com.flower.anno.flow.State;
 import com.flower.anno.functions.SimpleStepFunction;
@@ -12,8 +14,6 @@ import com.flower.anno.params.transit.Terminal;
 import com.flower.conf.ReturnValueOrException;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import javax.annotation.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -112,9 +112,9 @@ class R_TestFlow1 {
 @FlowType(firstStep = "step")
 class R_TestFlow2 {
   @SimpleStepFunction
-  static ListenableFuture<Transition> step(@Terminal Transition end) {
+  static CompletableFuture<Transition> step(@Terminal Transition end) {
     System.out.println("Step");
-    return Futures.immediateFuture(end);
+    return CompletableFuture.completedFuture(end);
   }
 }
 
@@ -141,9 +141,9 @@ class R_TestFlow4 {
   @State int i = 3;
 
   @StepFunction(returnTo = "i", transit = "transit")
-  static ListenableFuture<Integer> step(@Nullable @In int i) {
+  static CompletableFuture<Integer> step(@Nullable @In int i) {
     System.out.println("Step" + i);
-    return Futures.immediateFuture(5);
+    return CompletableFuture.completedFuture(5);
   }
 
   @TransitFunction
@@ -156,8 +156,8 @@ class R_TestFlow4 {
 @FlowType(firstStep = "step")
 class R_TestFlow5_1 {
   @StepFunction(transit = "transit")
-  static ListenableFuture<Integer> step() {
-    return Futures.immediateFuture(5);
+  static CompletableFuture<Integer> step() {
+    return CompletableFuture.completedFuture(5);
   }
 
   @TransitFunction
@@ -184,8 +184,8 @@ class R_TestFlow5_2 {
 @FlowType(firstStep = "step")
 class R_TestFlow6_1 {
   @StepFunction(transit = "transit")
-  static ListenableFuture<Integer> step() {
-    return Futures.immediateFuture(5);
+  static CompletableFuture<Integer> step() {
+    return CompletableFuture.completedFuture(5);
   }
 
   @TransitFunction
@@ -214,8 +214,8 @@ class R_TestFlow6_2 {
 @FlowType(firstStep = "step")
 class R_TestFlow7 {
   @StepFunction(transit = "transit")
-  static ListenableFuture<Integer> step() {
-    return Futures.immediateFailedFuture(new Exception("5"));
+  static CompletableFuture<Integer> step() {
+    return CompletableFuture.failedFuture(new Exception("5"));
   }
 
   @TransitFunction

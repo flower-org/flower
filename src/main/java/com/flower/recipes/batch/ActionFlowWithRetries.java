@@ -16,9 +16,8 @@ import com.flower.conf.InOutPrm;
 import com.flower.conf.OutPrm;
 import com.flower.conf.ReturnValueOrException;
 import com.flower.conf.Transition;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
 
 /**
@@ -48,12 +47,12 @@ public class ActionFlowWithRetries<ID, PROGRESS_MSG> {
     }
 
     @StepFunction(transit = "retry")
-    public static ListenableFuture<Void> action() {
+    public static CompletableFuture<Void> action() {
         throw new UnsupportedOperationException("This Step is abstract, needs to be implemented by a subclass");
     }
 
     @TransitFunction
-    public static <PROGRESS_MSG> ListenableFuture<Transition> retry(@InRetOrException ReturnValueOrException<Void> retValOrExc,
+    public static <PROGRESS_MSG> CompletableFuture<Transition> retry(@InRetOrException ReturnValueOrException<Void> retValOrExc,
                                                                     @InOut(out=Output.OPTIONAL) InOutPrm<Integer> currentAttempt,
                                                                     @In Integer maxRetryAttempts,
                                                                     @In BatchActionProgressCallback<PROGRESS_MSG> actionCallback,
@@ -68,13 +67,13 @@ public class ActionFlowWithRetries<ID, PROGRESS_MSG> {
                 //Increment attempt counter and retry
                 actionCallback.progressCallback(false, null, exception);
                 currentAttempt.setOutValue(currentAttemptVal + 1);
-                return Futures.immediateFuture(retry);
+                return CompletableFuture.completedFuture(retry);
             } else {
                 //Attempts exceeded, fatal.
                 actionCallback.progressCallback(true, null, exception);
-                return Futures.immediateFailedFuture(exception);
+                return CompletableFuture.failedFuture(exception);
             }
         }
-        return Futures.immediateFuture(next);
+        return CompletableFuture.completedFuture(next);
     }
 }

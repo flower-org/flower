@@ -349,6 +349,43 @@ public class FuturesToolTest {
                 executor)));
   }
 
+  // ---------------- callAsync
+
+  @Test
+  void callAsync_returnsCallableResult() throws Exception {
+    assertEquals(
+        "v", getValue(FuturesTool.callAsync(() -> CompletableFuture.completedFuture("v"))));
+
+    CompletableFuture<String> pending = new CompletableFuture<>();
+    CompletableFuture<String> result = FuturesTool.callAsync(() -> pending);
+    assertFalse(result.isDone());
+    pending.complete("later");
+    assertEquals("later", getValue(result));
+  }
+
+  @Test
+  void callAsync_checkedExceptionThrown_failsResult() throws Exception {
+    IOException exception = new IOException("checked");
+    CompletableFuture<String> result =
+        FuturesTool.callAsync(
+            () -> {
+              throw exception;
+            });
+    assertSame(exception, failureOf(result));
+  }
+
+  @Test
+  void callAsync_returnedFutureFails_unwrapped() throws Exception {
+    MyTestException exception = new MyTestException("x");
+    assertSame(
+        exception, failureOf(FuturesTool.callAsync(() -> dependentFailure(exception))));
+  }
+
+  @Test
+  void callAsync_nullReturned_failsWithNpe() throws Exception {
+    assertTrue(failureOf(FuturesTool.callAsync(() -> null)) instanceof NullPointerException);
+  }
+
   // ---------------- whenAllComplete*
 
   @Test

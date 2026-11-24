@@ -12,10 +12,7 @@ import com.flower.conf.FlowFactoryPrm;
 import com.flower.conf.FlowFuture;
 import com.flower.conf.OutPrm;
 import com.flower.conf.Transition;
-import com.flower.utilities.LegacyFuturesTool;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
+import com.flower.utilities.FuturesTool;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -24,6 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 
@@ -70,7 +68,7 @@ public class BatchFlow<CHILD_ID, PROGRESS_MSG, FLOW> {
     }
 
     @SimpleStepFunction
-    public static <CHILD_ID, PROGRESS_MSG, FLOW> ListenableFuture<Transition> runBatch(@In Iterator<CHILD_ID> idsIterator,
+    public static <CHILD_ID, PROGRESS_MSG, FLOW> CompletableFuture<Transition> runBatch(@In Iterator<CHILD_ID> idsIterator,
                                                                                        @In BatchProgressCallback<CHILD_ID, PROGRESS_MSG> batchProgressCallback,
                                                                                        @In Integer maximumSimultaneousExecutions,
                                                                                        @In BiFunction<CHILD_ID, BatchActionProgressCallback<PROGRESS_MSG>, FLOW> createActionFlow,
@@ -111,16 +109,16 @@ public class BatchFlow<CHILD_ID, PROGRESS_MSG, FLOW> {
         } else {
             //Finalize if all done
             if (activeFlows == 0) {
-                return Futures.immediateFuture(end);
+                return CompletableFuture.completedFuture(end);
             }
         }
 
     // If there are still active flows, wait and repeat
-    return Futures.transform(
-        LegacyFuturesTool.whenAnyCompleteIgnoreResult(
+    return FuturesTool.transform(
+        FuturesTool.whenAnyCompleteIgnoreResult(
             inProgressMap.values().stream().map(FlowFuture::getFuture).toList(),
-            MoreExecutors.directExecutor()),
+            FuturesTool.directExecutor()),
         ignored -> runBatch,
-        MoreExecutors.directExecutor());
+        FuturesTool.directExecutor());
     }
 }

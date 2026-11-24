@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** StepFunction. Function must be static. Function can return an object or a ListenableFuture. */
+/** StepFunction. Function must be static. Function can return an object or a CompletableFuture. */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})
 public @interface StepFunction {

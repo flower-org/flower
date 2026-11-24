@@ -6,8 +6,7 @@ import com.flower.conf.FlowerEngine;
 import com.flower.engine.configuration.FlowConfigurationRepo;
 import com.flower.engine.runner.FlowRunner;
 import com.flower.executor.TaskCheckingExecutor;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class Flower implements FlowerEngine {
   // TODO: does this belong to FlowConfigurationRepo
@@ -21,18 +20,18 @@ public class Flower implements FlowerEngine {
 
   // -------------------------------------------
 
-  private final ListeningScheduledExecutorService scheduler;
+  private final ScheduledExecutorService scheduler;
   private final FlowConfigurationRepo flowConfigurationRepo;
   private final FlowRunner flowRunner;
 
-  public Flower(ListeningScheduledExecutorService scheduler) {
+  public Flower(ScheduledExecutorService scheduler) {
     this.scheduler = scheduler;
     flowConfigurationRepo = new FlowConfigurationRepo();
     flowRunner = new FlowRunner(flowConfigurationRepo, scheduler);
   }
 
   public Flower(int threadCount) {
-    this(MoreExecutors.listeningDecorator(TaskCheckingExecutor.builder().corePoolSize(threadCount).build()));
+    this(TaskCheckingExecutor.builder().corePoolSize(threadCount).build());
   }
 
   public Flower() {

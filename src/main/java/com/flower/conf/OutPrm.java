@@ -1,6 +1,6 @@
 package com.flower.conf;
 
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.Nonnull;
 
@@ -21,5 +21,5 @@ public interface OutPrm<T> {
    *
    * @param value Future for the value to update Flow state with
    */
-  void setOutFuture(@Nonnull ListenableFuture<T> value);
+  void setOutFuture(@Nonnull CompletableFuture<T> value);
 }

@@ -1,9 +1,7 @@
 package com.flower.utilities.messagepassing;
 
-// TODO(CompletableFuture migration): reinstate after Phases 3+4. This test runs the queue inside real
-//  flows, whose step functions must still return ListenableFuture until the engine is migrated, while
-//  the queue already returns CompletableFuture. Plain coverage lives in MessageQueueUnitTest.
-/*
+import java.util.concurrent.CompletableFuture;
+import com.flower.utilities.FuturesTool;
 
 import com.flower.anno.flow.FlowType;
 import com.flower.anno.flow.State;
@@ -17,10 +15,6 @@ import com.flower.conf.FlowFuture;
 import com.flower.conf.InOutPrm;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.SettableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.Test;
 
@@ -54,18 +48,19 @@ public class MessageQueueTest {
 
         // We use MessageSink here to hide all non-Producer related functions
         MessageSink<Integer, Integer> messageSink = messageQueue;
-        List<ListenableFuture<Integer>> list = new ArrayList<>();
+        List<CompletableFuture<Integer>> list = new ArrayList<>();
         for (int i = 0; i < MESSAGE_COUNT; i++) {
             System.out.println("Sending " + i);
-            ListenableFuture<Integer> future = messageSink.add(i);
+            CompletableFuture<Integer> future = messageSink.add(i);
             list.add(future);
             if (i % 1000 == 0) {
                 Thread.sleep(10);
             }
         }
 
-        SettableFuture<Void> lock = SettableFuture.create();
-        Futures.whenAllComplete(list).call(() -> lock.set(null), MoreExecutors.directExecutor());
+        CompletableFuture<Void> lock = new CompletableFuture<>();
+        CompletableFuture<Boolean> unused =
+            FuturesTool.whenAllCompleteCall(list, () -> lock.complete(null), FuturesTool.directExecutor());
         lock.get();
 
         while (!flowFuture1.getFuture().isDone() ||
@@ -84,7 +79,7 @@ public class MessageQueueTest {
 
         assertEquals(MESSAGE_COUNT, processedCount.get());
         for (int i = 0; i < list.size(); i++) {
-            ListenableFuture<Integer> future = list.get(i);
+            CompletableFuture<Integer> future = list.get(i);
             int result = future.get();
             assertEquals(result, i);
         }
@@ -106,7 +101,7 @@ public class MessageQueueTest {
         }
 
         @SimpleStepFunction
-        public static ListenableFuture<Transition> PROCESS_MESSAGE(@In MessageSource<Integer, Integer> messageSource,
+        public static CompletableFuture<Transition> PROCESS_MESSAGE(@In MessageSource<Integer, Integer> messageSource,
                                                  @In AtomicInteger processedCount,
                                                  @In int flowNumber,
                                                  @InOut(throwIfNull = true) InOutPrm<Integer> processedByMe,
@@ -116,12 +111,12 @@ public class MessageQueueTest {
 
             System.out.println(flowNumber + " Flow woke up. Processed: " + processedCount.get() + "; By me: " + processedByMeVal);
 
-            Pair<Integer, SettableFuture<Integer>> message = messageSource.poll();
+            Pair<Integer, CompletableFuture<Integer>> message = messageSource.poll();
             while (message != null) {
                 // We must add this null check because the queue is concurrent and race conditions are possible
                 int i = message.getKey();
                 System.out.println(flowNumber + " Processing " + i);
-                message.getRight().set(i);
+                message.getRight().complete(i);
                 processedCount.incrementAndGet();
                 processedByMeVal++;
 
@@ -131,15 +126,14 @@ public class MessageQueueTest {
 
             if (processedCount.get() >= MESSAGE_COUNT) {
                 System.out.println(flowNumber + " Flow DONE. Processed: " + processedCount.get() + "; By me: " + processedByMeVal);
-                return Futures.immediateFuture(END);
+                return CompletableFuture.completedFuture(END);
             } else {
                 System.out.println(flowNumber + " Flow Gon'sleep. Processed: " + processedCount.get() + "; By me: " + processedByMeVal);
-                return Futures.transform(messageSource.getMessageListener(),
+                return FuturesTool.transform(messageSource.getMessageListener(),
                     unused_ -> PROCESS_MESSAGE,
-                    MoreExecutors.directExecutor()
+                    FuturesTool.directExecutor()
                 );
             }
         }
     }
 }
-*/

@@ -1,6 +1,6 @@
 package com.flower.engine.runner.event;
 
-import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+import static com.flower.utilities.FuturesTool.directExecutor;
 
 import com.flower.anno.event.EventType;
 import com.flower.conf.Transition;
@@ -8,22 +8,21 @@ import com.flower.engine.runner.callfunc.EventFunctionCallState;
 import com.flower.engine.runner.callfunc.FunctionCallContext;
 import com.flower.engine.runner.callfunc.FunctionCallUtil;
 import com.flower.engine.runner.state.ObjectStateAccess;
-import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.flower.utilities.FuturesTool;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
 
 public class EventRunUtil {
   @SuppressWarnings("CheckReturnValue")
-  public static ListenableFuture<Void> runEvents(
+  public static CompletableFuture<Void> runEvents(
       List<EventFunctionContext> functions,
       EventParametersProvider eventParametersProvider,
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException) {
-    if (functions.isEmpty()) return Futures.immediateVoidFuture();
+    if (functions.isEmpty()) return CompletableFuture.completedFuture(null);
 
     List<EventFunctionContext> parallelFunctions = new ArrayList<>();
     List<EventFunctionContext> blockingFunctions = new ArrayList<>();
@@ -47,53 +46,48 @@ public class EventRunUtil {
       }
     }
 
-    return FluentFuture.from(
-            runSequential(
-                synchronizedBreakingFunctions,
-                eventParametersProvider,
-                eventType,
-                transition,
-                flowException,
-                false))
-        .transform(
-            void_ ->
-                runSequential(
-                    synchronizedFunctions,
-                    eventParametersProvider,
-                    eventType,
-                    transition,
-                    flowException,
-                    true),
-            directExecutor())
-        .transform(
-            void_ ->
-                runParallel(
-                    blockingFunctions,
-                    eventParametersProvider,
-                    eventType,
-                    transition,
-                    flowException),
-            directExecutor())
-        .transform(
-            void_ -> {
+    // TODO: only FINALIZER functions are awaited by the returned future; SYNCHRONIZED, BLOCKING and
+    //  PARALLEL groups are started once FINALIZER functions complete, but their futures are not
+    //  awaited (this preserves pre-CompletableFuture-migration behaviour).
+    return FuturesTool.transform(
+        runSequential(
+            synchronizedBreakingFunctions,
+            eventParametersProvider,
+            eventType,
+            transition,
+            flowException,
+            false),
+        void_ -> {
+          CompletableFuture<Void> unusedSynchronized =
+              runSequential(
+                  synchronizedFunctions,
+                  eventParametersProvider,
+                  eventType,
+                  transition,
+                  flowException,
+                  true);
+          CompletableFuture<Void> unusedBlocking =
+              runParallel(
+                  blockingFunctions, eventParametersProvider, eventType, transition, flowException);
+          CompletableFuture<Void> unusedParallel =
               runParallel(
                   parallelFunctions, eventParametersProvider, eventType, transition, flowException);
-              return null;
-            },
-            directExecutor());
+          return null;
+        },
+        directExecutor());
   }
 
-  static ListenableFuture<Void> runSequential(
+  static CompletableFuture<Void> runSequential(
       List<EventFunctionContext> functions,
       EventParametersProvider eventParametersProvider,
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException,
       boolean hideExceptions) {
-    ListenableFuture<Void> currentFuture = Futures.immediateVoidFuture();
+    CompletableFuture<Void> currentFuture = CompletableFuture.completedFuture(null);
     for (EventFunctionContext function : functions) {
       currentFuture =
-          Futures.transformAsync(
+          FuturesTool.transformAsync(
               currentFuture,
               void_ ->
                   invokeEventFunction(
@@ -108,26 +102,26 @@ public class EventRunUtil {
 
       if (hideExceptions) {
         currentFuture =
-            Futures.catchingAsync(
+            FuturesTool.catchingAsync(
                 currentFuture,
                 Throwable.class,
-                e -> Futures.immediateVoidFuture(), // TODO: exception handling - log?
+                e -> CompletableFuture.completedFuture(null), // TODO: exception handling - log?
                 directExecutor());
       }
     }
     return currentFuture;
   }
 
-  static ListenableFuture<Void> runParallel(
+  static CompletableFuture<Void> runParallel(
       List<EventFunctionContext> functions,
       EventParametersProvider eventParametersProvider,
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException) {
-    List<ListenableFuture<Void>> futures = new ArrayList<>();
+    List<CompletableFuture<Void>> futures = new ArrayList<>();
     for (EventFunctionContext function : functions) {
       futures.add(
-          Futures.catchingAsync(
+          FuturesTool.catchingAsync(
               invokeEventFunction(
                   function.eventProfileStateAccess,
                   function.flowStateAccess,
@@ -139,16 +133,15 @@ public class EventRunUtil {
               Throwable.class,
               e ->  {
                 // TODO: exception handling - log?
-                return Futures.immediateVoidFuture();
+                return CompletableFuture.<Void>completedFuture(null);
               },
               directExecutor()));
     }
 
-    return Futures.whenAllComplete(futures)
-        .callAsync(Futures::immediateVoidFuture, directExecutor());
+    return FuturesTool.whenAllCompleteCall(futures, () -> null, directExecutor());
   }
 
-  static ListenableFuture<Void> invokeEventFunction(
+  static CompletableFuture<Void> invokeEventFunction(
       ObjectStateAccess eventProfileStateAccess,
       ObjectStateAccess flowStateAccess,
       FunctionCallContext functionCallContext,
@@ -167,7 +160,7 @@ public class EventRunUtil {
           transition,
           flowException);
     } catch (Throwable t) {
-      return Futures.immediateFailedFuture(t);
+      return CompletableFuture.failedFuture(t);
     }
   }
 }

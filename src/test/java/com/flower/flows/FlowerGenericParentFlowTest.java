@@ -1,5 +1,8 @@
 package com.flower.flows;
 
+import java.util.concurrent.CompletableFuture;
+import com.flower.utilities.FuturesTool;
+
 import com.flower.anno.flow.FlowType;
 import com.flower.anno.flow.State;
 import com.flower.anno.functions.SimpleStepFunction;
@@ -13,9 +16,6 @@ import com.flower.conf.FlowFuture;
 import com.flower.conf.OutPrm;
 import com.flower.conf.Transition;
 import com.flower.engine.Flower;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -97,17 +97,17 @@ class RunGenericChildParentFlow {
     }
 
     @SimpleStepFunction
-    public static ListenableFuture<Transition> runChild(@FlowFactory FlowFactoryPrm<SuperFlow> childFlowFactory,
+    public static CompletableFuture<Transition> runChild(@FlowFactory FlowFactoryPrm<SuperFlow> childFlowFactory,
                                                         @In SuperFlow child,
                                                         @Terminal Transition end) {
         FlowFuture<SuperFlow> childFlowFuture = childFlowFactory.runChildFlow(child);
         System.out.println("Child flow created. Id: " + childFlowFuture.getFlowId());
-        return Futures.transform(childFlowFuture.getFuture(),
+        return FuturesTool.transform(childFlowFuture.getFuture(),
             childFlow -> {
                 System.out.println("Child flow done. Result: " + childFlow.result);
                 return end;
             },
-            MoreExecutors.directExecutor());
+            FuturesTool.directExecutor());
     }
 }
 

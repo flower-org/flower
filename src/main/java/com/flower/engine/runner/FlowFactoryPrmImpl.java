@@ -5,7 +5,7 @@ import com.flower.conf.FlowFuture;
 import com.flower.conf.FlowId;
 import com.flower.conf.FlowRepoPrm;
 import com.flower.conf.InternalFlowExec;
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import java.time.Duration;
 import javax.annotation.Nullable;
 
@@ -34,7 +34,7 @@ public class FlowFactoryPrmImpl<T> implements FlowFactoryPrm<T>  {
 
   @Nullable
   @Override
-  public ListenableFuture<T> getFlowFuture(FlowId flowId) {
+  public CompletableFuture<T> getFlowFuture(FlowId flowId) {
     return flowRepoPrm.getFlowFuture(flowId);
   }
 }

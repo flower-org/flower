@@ -27,7 +27,7 @@ import com.flower.engine.runner.state.StateAccessConfig;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.lang.reflect.Method;
@@ -51,7 +51,7 @@ public class StepCallContextCreator {
 
   Type extractReturnType(Type returnType) {
     if (returnType instanceof ParameterizedType)
-      if (((ParameterizedType) returnType).getRawType().equals(ListenableFuture.class))
+      if (((ParameterizedType) returnType).getRawType().equals(CompletableFuture.class))
         returnType = ((ParameterizedType) returnType).getActualTypeArguments()[0];
     return returnType;
   }
@@ -95,7 +95,7 @@ public class StepCallContextCreator {
         Type returnType = extractReturnType(functionOrCallMethod.getGenericReturnType());
 
         if (returnType instanceof ParameterizedType)
-          if (((ParameterizedType) returnType).getRawType().equals(ListenableFuture.class))
+          if (((ParameterizedType) returnType).getRawType().equals(CompletableFuture.class))
             returnType = ((ParameterizedType) returnType).getActualTypeArguments()[0];
 
         return returnToParameterValidator.fromBaseParameter(
@@ -151,7 +151,7 @@ public class StepCallContextCreator {
       Type returnType = function.getGenericReturnType();
 
       if (returnType instanceof ParameterizedType)
-        if (((ParameterizedType) returnType).getRawType().equals(ListenableFuture.class))
+        if (((ParameterizedType) returnType).getRawType().equals(CompletableFuture.class))
           returnType = ((ParameterizedType) returnType).getActualTypeArguments()[0];
 
       if (!returnType.equals(Transition.class))

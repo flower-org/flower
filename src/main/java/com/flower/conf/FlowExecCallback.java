@@ -1,9 +1,9 @@
 package com.flower.conf;
 
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 
 public interface FlowExecCallback {
-  void flowStarted(FlowId flowId, ListenableFuture flow);
+  void flowStarted(FlowId flowId, CompletableFuture flow);
 
   void flowFinished(FlowId flowId);
 }

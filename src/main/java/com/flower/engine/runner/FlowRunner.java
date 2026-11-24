@@ -15,8 +15,8 @@ import com.flower.engine.configuration.GlobalFunctionRecord;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,11 +30,11 @@ public class FlowRunner implements FlowExecCallback {
   private static final int TIME_TO_LIVE_IN_CACHE_MILLIS = 30 * 60 * 1000;
   private static final int MAXIMUM_CACHE_SIZE = 1000;
 
-  private final ListeningScheduledExecutorService scheduler;
+  private final ScheduledExecutorService scheduler;
   private final FlowConfigurationRepo flowConfigurationRepo;
   private final FlowCallContextCreator flowCallContextCreator;
-  private final Map<FlowId, ListenableFuture<Object>> activeFlows;
-  private final Cache<FlowId, ListenableFuture<Object>> flowsCache;
+  private final Map<FlowId, CompletableFuture<Object>> activeFlows;
+  private final Cache<FlowId, CompletableFuture<Object>> flowsCache;
 
   private final DynamicFlowExec dynamicFlowExec;
 
@@ -44,13 +44,13 @@ public class FlowRunner implements FlowExecCallback {
   @Nullable private List<FactoryOfFlowTypeFactories> flowTypeFactoriesList;
 
   public FlowRunner(
-      FlowConfigurationRepo flowConfigurationRepo, ListeningScheduledExecutorService scheduler) {
+      FlowConfigurationRepo flowConfigurationRepo, ScheduledExecutorService scheduler) {
     this(flowConfigurationRepo, scheduler, TIME_TO_LIVE_IN_CACHE_MILLIS, MAXIMUM_CACHE_SIZE);
   }
 
   public FlowRunner(
       FlowConfigurationRepo flowConfigurationRepo,
-      ListeningScheduledExecutorService scheduler,
+      ScheduledExecutorService scheduler,
       int ttlInCacheMillis,
       int maxCacheSize) {
     this.flowConfigurationRepo = flowConfigurationRepo;
@@ -171,25 +171,25 @@ public class FlowRunner implements FlowExecCallback {
   }
 
   @Nullable
-  public ListenableFuture<Object> getActiveFlow(FlowId flowId) {
+  public CompletableFuture<Object> getActiveFlow(FlowId flowId) {
     return activeFlows.get(flowId);
   }
 
   @Nullable
-  public ListenableFuture<Object> getFlowFuture(FlowId flowId) {
-    ListenableFuture<Object> flowFuture = getActiveFlow(flowId);
+  public CompletableFuture<Object> getFlowFuture(FlowId flowId) {
+    CompletableFuture<Object> flowFuture = getActiveFlow(flowId);
     return flowFuture != null ? flowFuture : flowsCache.getIfPresent(flowId);
   }
 
   @Override
-  public void flowStarted(FlowId flowId, ListenableFuture flow) {
+  public void flowStarted(FlowId flowId, CompletableFuture flow) {
     activeFlows.put(flowId, flow);
   }
 
   @Override
   public void flowFinished(FlowId flowId) {
     // remove from active flows and put to flow LRU cache
-    ListenableFuture<Object> flow = Preconditions.checkNotNull(activeFlows.get(flowId));
+    CompletableFuture<Object> flow = Preconditions.checkNotNull(activeFlows.get(flowId));
     flowsCache.put(flowId, flow);
     activeFlows.remove(flowId);
   }
@@ -203,7 +203,7 @@ public class FlowRunner implements FlowExecCallback {
     return dynamicFlowExec;
   }
 
-  public ListeningScheduledExecutorService getScheduler() {
+  public ScheduledExecutorService getScheduler() {
     return scheduler;
   }
 }
