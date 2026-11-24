@@ -18,6 +18,7 @@ import com.flower.engine.runner.event.StepInfo;
 import com.flower.engine.runner.state.ObjectStateAccess;
 import com.flower.engine.runner.state.StateAccess;
 import com.flower.engine.runner.state.StateAccessConfig;
+import com.flower.eventbus.FlowEventBus;
 import com.flower.utilities.FuturesTool;
 import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
@@ -76,9 +77,10 @@ public class StepContext implements StepCallContext {
       StateAccess stateAccess,
       EventRunner eventRunner,
       EventContext eventContext,
-      EventParametersProvider eventParametersProvider) {
+      EventParametersProvider eventParametersProvider,
+      @Nullable FlowEventBus eventBus) {
     StepFunctionCallState stepCallState =
-        new StepFunctionCallState(stateAccess, stepReturnValueToFlowParameterName);
+        new StepFunctionCallState(stateAccess, stepReturnValueToFlowParameterName, eventBus);
 
     CompletableFuture<Object> stepResult =
         FuturesTool.transformAsync(
@@ -104,9 +106,10 @@ public class StepContext implements StepCallContext {
       Object stepFunctionReturnValue,
       EventRunner eventRunner,
       EventContext eventContext,
-      EventParametersProvider eventParametersProvider) {
+      EventParametersProvider eventParametersProvider,
+      @Nullable FlowEventBus eventBus) {
     TransitFunctionCallState callState =
-        new TransitFunctionCallState(stateAccess, stepFunctionReturnValue);
+        new TransitFunctionCallState(stateAccess, stepFunctionReturnValue, eventBus);
 
     CompletableFuture<InternalTransition> transitResult =
         FuturesTool.transformAsync(
@@ -136,10 +139,11 @@ public class StepContext implements StepCallContext {
       Throwable t,
       EventRunner eventRunner,
       EventContext eventContext,
-      EventParametersProvider eventParametersProvider) {
+      EventParametersProvider eventParametersProvider,
+      @Nullable FlowEventBus eventBus) {
     if (isTransitionerCatching) {
       TransitFunctionExceptionCallState callState =
-          new TransitFunctionExceptionCallState(stateAccess, t);
+          new TransitFunctionExceptionCallState(stateAccess, t, eventBus);
 
       CompletableFuture<Void> beforeTransit =
           FuturesTool.transformAsync(
@@ -205,7 +209,8 @@ public class StepContext implements StepCallContext {
       Object flowState,
       EventRunner eventRunner,
       EventContext eventContext,
-      EventParametersProvider eventParametersProvider) {
+      EventParametersProvider eventParametersProvider,
+      @Nullable FlowEventBus eventBus) {
     final ObjectStateAccess stateAccess = new ObjectStateAccess(flowState, flowStateAccessConfig);
 
     // 1) Call executor - step function
@@ -213,14 +218,14 @@ public class StepContext implements StepCallContext {
         FuturesTool.catchingAsync(
             FuturesTool.transform(
                 invokeStepFunction(
-                    flowId, stateAccess, eventRunner, eventContext, eventParametersProvider),
+                    flowId, stateAccess, eventRunner, eventContext, eventParametersProvider, eventBus),
                 stepFunctionReturnValue -> new RetValAndTransition(stepFunctionReturnValue, false),
                 directExecutor()),
             Throwable.class,
             t ->
                 FuturesTool.transform(
                     invokeTransitFunctionOnException(
-                        stateAccess, t, eventRunner, eventContext, eventParametersProvider),
+                        stateAccess, t, eventRunner, eventContext, eventParametersProvider, eventBus),
                     transition -> new RetValAndTransition(transition, true),
                     directExecutor()),
             directExecutor());
@@ -236,10 +241,17 @@ public class StepContext implements StepCallContext {
                 retValAndTransition.value,
                 eventRunner,
                 eventContext,
-                eventParametersProvider);
+                eventParametersProvider,
+                eventBus);
           }
         },
         directExecutor());
+  }
+
+  @Override
+  public boolean usesEventBus() {
+    return stepFunctionCall.hasParameterOfType(ParameterType.EVENT_BUS)
+        || transitFunctionCall.hasParameterOfType(ParameterType.EVENT_BUS);
   }
 
   @Override

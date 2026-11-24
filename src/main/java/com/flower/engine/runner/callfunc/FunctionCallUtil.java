@@ -91,6 +91,10 @@ public class FunctionCallUtil {
         case FLOW_REPO:
           parameters.add(callParameter.getSpecialObject());
           break;
+        case EVENT_BUS:
+          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
+          parameters.add(Preconditions.checkNotNull(callState.eventBus));
+          break;
         case CHILD_FLOW_FACTORY_REF:
           parameters.add(
               ((FactoryOfFlowTypeFactories) Preconditions.checkNotNull(callParameter.getSpecialObject())).getFactory(flowId));
@@ -227,6 +231,10 @@ public class FunctionCallUtil {
         case TERMINAL:
           parameters.add(callParameter.getSpecialObject());
           break;
+        case EVENT_BUS:
+          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
+          parameters.add(Preconditions.checkNotNull(callState.eventBus));
+          break;
         case TRANSIT_IN_RET:
           parameters.add(callState.previousReturnValue);
           break;
@@ -270,6 +278,10 @@ public class FunctionCallUtil {
         case STEP_REF:
         case TERMINAL:
           parameters.add(callParameter.getSpecialObject());
+          break;
+        case EVENT_BUS:
+          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
+          parameters.add(Preconditions.checkNotNull(callState.eventBus));
           break;
         case TRANSIT_IN_RET_OR_EXCEPTION:
           parameters.add(new FlowerRetValOrException<>(callState.stepFunctionException));
@@ -365,6 +377,10 @@ public class FunctionCallUtil {
         case TERMINAL:
         case FLOW_REPO:
           parameters.add(callParameter.getSpecialObject());
+          break;
+        case EVENT_BUS:
+          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
+          parameters.add(Preconditions.checkNotNull(callState.eventBus));
           break;
         case CHILD_FLOW_FACTORY_REF:
           parameters.add(
@@ -527,6 +543,7 @@ public class FunctionCallUtil {
         case TERMINAL: // Transit-only
         case CHILD_FLOW_FACTORY_REF: // Step-only
         case FLOW_REPO: // Step-only
+        case EVENT_BUS: // Step/Transit-only
           throw new IllegalStateException(
               String.format(
                   flowStepInfo + " Fatal: Function parameter type is not supported in event functions: [%s]. FlowField [%s] FunctionPrm [%s]",

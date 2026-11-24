@@ -1,5 +1,6 @@
 package com.flower.engine.configuration;
 
+import com.flower.anno.params.common.EventBus;
 import com.flower.anno.params.common.Exec;
 import com.flower.anno.params.common.In;
 import com.flower.anno.params.common.InOut;
@@ -26,6 +27,7 @@ public class FunctionParameterRecord {
   @Nullable public Out outAnnotation = null;
   @Nullable public InOut inOutAnnotation = null;
   @Nullable public Exec execAnnotation = null;
+  @Nullable public EventBus eventBusAnnotation = null;
 
   @Nullable public InFromFlow inFromFlowAnnotation = null;
 
@@ -119,6 +121,23 @@ public class FunctionParameterRecord {
         null,
         nullableAnnotation);
     this.execAnnotation = execAnnotation;
+  }
+
+  FunctionParameterRecord(
+      EventBus eventBusAnnotation,
+      Nullable nullableAnnotation,
+      Parameter prm,
+      Type genericParameterType,
+      @Nullable Class<?> flowType) {
+    this(
+        prm,
+        genericParameterType,
+        FunctionParameterType.EVENT_BUS,
+        eventBusAnnotation.name(),
+        flowType,
+        null,
+        nullableAnnotation);
+    this.eventBusAnnotation = eventBusAnnotation;
   }
 
   FunctionParameterRecord(

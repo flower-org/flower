@@ -6,6 +6,7 @@ public enum ParameterType {
   OUT,
   IN_OUT,
   EXEC,
+  EVENT_BUS, // Special object - per Flow instance FlowEventBus, resolved at call time
 
   // ======= BEGIN Exec-specific =======
   CHILD_FLOW_FACTORY_REF, // Special object FlowTypeFactory

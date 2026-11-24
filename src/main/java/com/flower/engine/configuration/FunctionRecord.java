@@ -1,6 +1,7 @@
 package com.flower.engine.configuration;
 
 import com.flower.anno.event.EventType;
+import com.flower.anno.params.common.EventBus;
 import com.flower.anno.params.common.Exec;
 import com.flower.anno.params.common.In;
 import com.flower.anno.params.common.InOut;
@@ -26,6 +27,7 @@ import com.flower.conf.OutPrm;
 import com.flower.conf.ReturnValueOrException;
 import com.flower.conf.StepInfoPrm;
 import com.flower.conf.Transition;
+import com.flower.eventbus.FlowEventBus;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import java.lang.annotation.Annotation;
@@ -149,6 +151,7 @@ public class FunctionRecord {
     Out outAnnotation = prm.getAnnotation(Out.class);
     InOut inOutAnnotation = prm.getAnnotation(InOut.class);
     Exec executorAnnotation = prm.getAnnotation(Exec.class);
+    EventBus eventBusAnnotation = prm.getAnnotation(EventBus.class);
     StepRef stepRefAnnotation = prm.getAnnotation(StepRef.class);
     Terminal terminalAnnotation = prm.getAnnotation(Terminal.class);
     InRet inRetAnnotation = prm.getAnnotation(InRet.class);
@@ -173,6 +176,7 @@ public class FunctionRecord {
           outAnnotation,
           inOutAnnotation,
           executorAnnotation,
+          eventBusAnnotation,
           stepRefAnnotation,
           terminalAnnotation,
           inRetAnnotation,
@@ -242,6 +246,24 @@ public class FunctionRecord {
       }
       return new FunctionParameterRecord(
           executorAnnotation, nullableAnnotation, prm, genericParameterType, flowType);
+    } else if (eventBusAnnotation != null) {
+      if (functionType != FunctionType.STEP
+          && functionType != FunctionType.TRANSIT
+          && functionType != FunctionType.STEP_AND_TRANSIT
+          && functionType != FunctionType.GLOBAL) {
+        throw new AnnotationFormatError(
+            String.format(
+                "Function %s. Parameter %s annotated as @EventBus can only be used in StepFunction, TransitFunction or StepAndTransitFunction",
+                physicalFunctionName, prm.getName()));
+      }
+      if (!prm.getType().equals(FlowEventBus.class)) {
+        throw new AnnotationFormatError(
+            String.format(
+                "Function %s. Parameter %s annotated as @EventBus should be of type %s",
+                physicalFunctionName, prm.getName(), FlowEventBus.class.getCanonicalName()));
+      }
+      return new FunctionParameterRecord(
+          eventBusAnnotation, nullableAnnotation, prm, genericParameterType, flowType);
     } else if (stepRefAnnotation != null) {
       if (functionType != FunctionType.TRANSIT
           && functionType != FunctionType.STEP_AND_TRANSIT
@@ -455,7 +477,7 @@ public class FunctionRecord {
       // Flower Parameter annotation is required
       throw new AnnotationFormatError(
           String.format(
-              "Function %s. Parameter %s should be annotated as one of [@In, @Out, @InOut, @StepRef, @Terminal, @InRet, @InRetOrException, @FlowFactory, @FlowRepo, @EventInfo, @FlowInfo, @StepInfo, @TransitionInfo, @FlowException]",
+              "Function %s. Parameter %s should be annotated as one of [@In, @Out, @InOut, @Exec, @EventBus, @StepRef, @Terminal, @InRet, @InRetOrException, @FlowFactory, @FlowRepo, @EventInfo, @FlowInfo, @StepInfo, @TransitionInfo, @FlowException]",
               physicalFunctionName, prm.getName()));
     }
   }

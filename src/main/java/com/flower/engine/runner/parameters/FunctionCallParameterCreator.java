@@ -21,6 +21,7 @@ public class FunctionCallParameterCreator {
   final InRetParameterCreator inRetParameterCreator;
   final InRetOrExceptionParameterCreator inRetOrExceptionParameterCreator;
   final ExecParameterCreator execParameterCreator;
+  final EventBusParameterCreator eventBusParameterCreator;
   final InOutParameterCreator inOutParameterCreator;
   final OutParameterCreator outParameterCreator;
   final StepRefOrTerminalParameterCreator stepRefOrTerminalParameterCreator;
@@ -35,6 +36,7 @@ public class FunctionCallParameterCreator {
     inRetParameterCreator = new InRetParameterCreator();
     inRetOrExceptionParameterCreator = new InRetOrExceptionParameterCreator();
     execParameterCreator = new ExecParameterCreator(flowRunner.getScheduler());
+    eventBusParameterCreator = new EventBusParameterCreator();
     inOutParameterCreator = new InOutParameterCreator();
     outParameterCreator = new OutParameterCreator();
     stepRefOrTerminalParameterCreator = new StepRefOrTerminalParameterCreator();
@@ -77,6 +79,8 @@ public class FunctionCallParameterCreator {
       parameterCreator = inRetOrExceptionParameterCreator;
     } else if (functionParameter.execAnnotation != null) {
       parameterCreator = execParameterCreator;
+    } else if (functionParameter.eventBusAnnotation != null) {
+      parameterCreator = eventBusParameterCreator;
     } else if (functionParameter.outAnnotation != null) {
       parameterCreator = outParameterCreator;
       // @Out for event functions references EventProfileState
@@ -101,7 +105,7 @@ public class FunctionCallParameterCreator {
     } else {
       throw new IllegalStateException(
           String.format(
-              "Parameter must be annotated with one of [@In, @Out, @InOut, @StepRef, @Terminal, @InRet, @InRetOrException, @FlowFactory, @FlowRepo, @InFromFlow, @OutFromFlow, @InOutFromFlow, @EventInfo, @FlowInfo, @RunningTimeStats, @StepInfo, @TransitionInfo, @FlowException]. Flow [%s] ParameterName [%s]",
+              "Parameter must be annotated with one of [@In, @Out, @InOut, @Exec, @EventBus, @StepRef, @Terminal, @InRet, @InRetOrException, @FlowFactory, @FlowRepo, @InFromFlow, @OutFromFlow, @InOutFromFlow, @EventInfo, @FlowInfo, @RunningTimeStats, @StepInfo, @TransitionInfo, @FlowException]. Flow [%s] ParameterName [%s]",
               flowTypeRecord.flowTypeName, functionParameter.name));
     }
 

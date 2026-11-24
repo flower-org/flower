@@ -5,6 +5,7 @@ import static com.flower.utilities.FuturesTool.directExecutor;
 import com.flower.anno.event.EventType;
 import com.flower.conf.FlowId;
 import com.flower.conf.StepInfoPrm;
+import com.flower.engine.function.ParameterType;
 import com.flower.engine.runner.callfunc.FunctionCallContext;
 import com.flower.engine.runner.callfunc.FunctionCallUtil;
 import com.flower.engine.runner.callfunc.StepAndTransitFunctionCallState;
@@ -14,11 +15,13 @@ import com.flower.engine.runner.event.EventRunner;
 import com.flower.engine.runner.event.StepInfo;
 import com.flower.engine.runner.state.ObjectStateAccess;
 import com.flower.engine.runner.state.StateAccessConfig;
+import com.flower.eventbus.FlowEventBus;
 import com.flower.utilities.FuturesTool;
 import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
+import javax.annotation.Nullable;
 
 public class StepAndTransitContext implements StepCallContext {
   final FunctionCallContext stepAndTransitFunctionCall;
@@ -72,10 +75,12 @@ public class StepAndTransitContext implements StepCallContext {
       Object flowState,
       EventRunner eventRunner,
       EventContext eventContext,
-      EventParametersProvider eventParametersProvider) {
+      EventParametersProvider eventParametersProvider,
+      @Nullable FlowEventBus eventBus) {
     ObjectStateAccess stateAccess = new ObjectStateAccess(flowState, flowStateAccessConfig);
 
-    StepAndTransitFunctionCallState callState = new StepAndTransitFunctionCallState(stateAccess);
+    StepAndTransitFunctionCallState callState =
+        new StepAndTransitFunctionCallState(stateAccess, eventBus);
 
     CompletableFuture<InternalTransition> stepAndTransitResult =
         FuturesTool.transformAsync(
@@ -120,6 +125,11 @@ public class StepAndTransitContext implements StepCallContext {
                 void_ -> ret,
                 directExecutor()),
         directExecutor());
+  }
+
+  @Override
+  public boolean usesEventBus() {
+    return stepAndTransitFunctionCall.hasParameterOfType(ParameterType.EVENT_BUS);
   }
 
   @Override

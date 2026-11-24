@@ -14,6 +14,7 @@ import com.flower.engine.runner.event.EventRunUtil;
 import com.flower.engine.runner.event.EventRunner;
 import com.flower.engine.runner.step.InternalTransition;
 import com.flower.engine.runner.step.StepCallContext;
+import com.flower.eventbus.FlowEventBus;
 import com.google.common.base.Preconditions;
 import com.flower.utilities.FuturesTool;
 import java.lang.reflect.Constructor;
@@ -38,6 +39,8 @@ public class FlowCallContext implements EventRunner {
   final String flowName;
   final Class<?> flowType;
   final ScheduledExecutorService scheduler;
+  /** Whether any function of this Flow type takes an @EventBus parameter. */
+  final boolean usesEventBus;
 
   public FlowCallContext(
       String flowName,
@@ -52,6 +55,7 @@ public class FlowCallContext implements EventRunner {
     this.firstStepName = firstStepName;
     this.eventContexts = eventContexts;
     this.scheduler = scheduler;
+    this.usesEventBus = stepCalls.values().stream().anyMatch(StepCallContext::usesEventBus);
     if (!stepCalls.containsKey(firstStepName))
       throw new IllegalStateException(
           String.format(
@@ -81,7 +85,14 @@ public class FlowCallContext implements EventRunner {
     }
 
     return new FlowImpl<>(
-        id, flowName, flowType, Optional.empty(), firstStepName, flowState, eventProfileStates);
+        id,
+        flowName,
+        flowType,
+        Optional.empty(),
+        firstStepName,
+        flowState,
+        eventProfileStates,
+        usesEventBus ? new FlowEventBus() : null);
   }
 
   @Override
@@ -145,7 +156,8 @@ public class FlowCallContext implements EventRunner {
       return FuturesTool.transformAsync(
           FuturesTool.transformAsync(
               runEvents(EventType.BEFORE_STEP_ITERATION, flow, flow, null, null),
-              void_ -> stepCallContext.call(flow.getId(), flow.getState(), this, flow, flow),
+              void_ -> stepCallContext.call(
+                      flow.getId(), flow.getState(), this, flow, flow, flow.getEventBus()),
               scheduler),
           t ->
               FuturesTool.transform(

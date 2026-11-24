@@ -7,6 +7,7 @@ import com.flower.conf.StepInfoPrm;
 import com.flower.engine.runner.event.EventContext;
 import com.flower.engine.runner.event.EventParametersProvider;
 import com.flower.engine.runner.event.FlowInfo;
+import com.flower.eventbus.FlowEventBus;
 import com.google.common.base.Preconditions;
 import java.util.Map;
 import java.util.Optional;
@@ -23,6 +24,12 @@ public class FlowImpl<T> implements Flow<T>, EventContext, EventParametersProvid
 
   final Map<Class<?>, Object> eventProfileStates;
 
+  /**
+   * This Flow instance's own event bus, injected into functions via @EventBus. Null if the Flow type
+   * has no @EventBus parameters, to avoid allocating it for Flows that don't use it.
+   */
+  @Nullable final FlowEventBus eventBus;
+
   @Nullable
   StepInfoPrm stepInfo = null;
 
@@ -33,13 +40,15 @@ public class FlowImpl<T> implements Flow<T>, EventContext, EventParametersProvid
       Optional<String> status,
       String currentStep,
       T state,
-      Map<Class<?>, Object> eventProfileStates) {
+      Map<Class<?>, Object> eventProfileStates,
+      @Nullable FlowEventBus eventBus) {
     this.id = id;
     this.flowInfo = new FlowInfo(id, flowName, flowType);
     this.status = new AtomicReference<>(status);
     this.currentStep = new AtomicReference<>(currentStep);
     this.state = state;
     this.eventProfileStates = eventProfileStates;
+    this.eventBus = eventBus;
   }
 
   @Override
@@ -78,6 +87,10 @@ public class FlowImpl<T> implements Flow<T>, EventContext, EventParametersProvid
   @Override
   public Map<Class<?>, Object> getEventProfileStates() {
     return eventProfileStates;
+  }
+
+  public @Nullable FlowEventBus getEventBus() {
+    return eventBus;
   }
 
   @Override
