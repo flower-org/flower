@@ -94,7 +94,7 @@ public class FunctionCallUtil {
           break;
         case CHILD_FLOW_FACTORY_REF:
           parameters.add(
-              ((FactoryOfFlowTypeFactories) callParameter.getSpecialObject()).getFactory(flowId));
+              ((FactoryOfFlowTypeFactories) Preconditions.checkNotNull(callParameter.getSpecialObject())).getFactory(flowId));
           break;
         case TRANSIT_IN_RET: // Transit-only
         case STEP_REF: // Transit-only
@@ -369,7 +369,7 @@ public class FunctionCallUtil {
           break;
         case CHILD_FLOW_FACTORY_REF:
           parameters.add(
-              ((FactoryOfFlowTypeFactories) callParameter.getSpecialObject()).getFactory(flowId));
+              ((FactoryOfFlowTypeFactories) Preconditions.checkNotNull(callParameter.getSpecialObject())).getFactory(flowId));
           break;
         case TRANSIT_IN_RET: // Transit-only
         case IN_FROM_FLOW: // Event-only

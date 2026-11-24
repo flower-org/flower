@@ -309,7 +309,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
                   transitionToNextStep0(flowInstance, transition, settableFuture);
                 }
               } catch (ExecutionException e) {
-                settableFuture.setException(e.getCause());
+                settableFuture.setException(e.getCause() != null ? e.getCause() : e);
               } catch (Throwable t) {
                 settableFuture.setException(t);
               }

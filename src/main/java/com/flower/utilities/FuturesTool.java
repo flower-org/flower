@@ -107,7 +107,7 @@ public class FuturesTool {
                 V result = futureToDecouple.get();
                 setAndReturnThisFuture.set(result);
               } catch (ExecutionException e) {
-                setAndReturnThisFuture.setException(e.getCause());
+                setAndReturnThisFuture.setException(e.getCause() != null ? e.getCause() : e);
               } catch (Throwable t) {
                 setAndReturnThisFuture.setException(t);
               }
