@@ -16,6 +16,7 @@ import com.flower.anno.functions.SimpleStepFunction;
 import com.flower.anno.params.common.In;
 import com.flower.anno.params.common.InOut;
 import com.flower.anno.params.common.Out;
+import com.flower.anno.params.events.FlowException;
 import com.flower.anno.params.transit.Terminal;
 import com.flower.conf.NullableInOutPrm;
 import com.flower.conf.OutPrm;
@@ -24,6 +25,7 @@ import com.flower.engine.Flower;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -153,6 +155,85 @@ public class EventConcurrencyTest {
     try {
       runFlow(flower, EC_SyncOutFlow.class, new EC_SyncOutFlow());
       assertEquals(42, EC_SyncOutProfile.seen.get());
+    } finally {
+      flower.shutdownScheduler();
+    }
+  }
+
+  // ---------------- AFTER_FLOW / FLOW_EXCEPTION are awaited like any other event ----------------
+
+  @Test
+  void afterFlow_blockingStagesAwaited() throws Exception {
+    EC_EndProfile.reset();
+    Flower flower = flower(EC_EndFlow.class, EC_EndProfile.class);
+    try {
+      runFlow(flower, EC_EndFlow.class, new EC_EndFlow());
+      assertTrue(EC_EndProfile.afterFlowBlockingDone.get());
+    } finally {
+      EC_EndProfile.releaseNonBlocking.countDown();
+      flower.shutdownScheduler();
+    }
+  }
+
+  @Test
+  void afterFlow_nonBlockingNotAwaited() throws Exception {
+    EC_EndProfile.reset();
+    Flower flower = flower(EC_EndFlow.class, EC_EndProfile.class);
+    try {
+      // The NON_BLOCKING AFTER_FLOW function waits until released below: if it were awaited, the
+      // Flow wouldn't complete within the timeout
+      flower.getFlowExec(EC_EndFlow.class).runFlow(new EC_EndFlow()).getFuture()
+          .get(2, TimeUnit.SECONDS);
+    } finally {
+      EC_EndProfile.releaseNonBlocking.countDown();
+      flower.shutdownScheduler();
+    }
+  }
+
+  @Test
+  void afterFlow_finalizerFailureFailsFlow_andRunsFlowException() throws Exception {
+    EC_AfterFlowFinalizerProfile.flowException.set(null);
+    Flower flower = flower(EC_AfterFlowFinalizerFlow.class, EC_AfterFlowFinalizerProfile.class);
+    try {
+      ExecutionException e =
+          assertThrows(
+              ExecutionException.class,
+              () -> runFlow(flower, EC_AfterFlowFinalizerFlow.class, new EC_AfterFlowFinalizerFlow()));
+      assertEquals("AFTER_FLOW_FINALIZER", e.getCause().getMessage());
+      assertEquals("AFTER_FLOW_FINALIZER", EC_AfterFlowFinalizerProfile.flowException.get());
+    } finally {
+      flower.shutdownScheduler();
+    }
+  }
+
+  @Test
+  void flowException_blockingStagesAwaited_originalExceptionKept() throws Exception {
+    EC_FlowExceptionProfile.blockingDone.set(false);
+    Flower flower = flower(EC_FailingFlow.class, EC_FlowExceptionProfile.class, EC_FlowExceptionFinalizerProfile.class);
+    try {
+      ExecutionException e =
+          assertThrows(
+              ExecutionException.class,
+              () -> runFlow(flower, EC_FailingFlow.class, new EC_FailingFlow()));
+      assertEquals("STEP_FAILED", e.getCause().getMessage());
+      assertTrue(EC_FlowExceptionProfile.blockingDone.get());
+    } finally {
+      flower.shutdownScheduler();
+    }
+  }
+
+  @Test
+  void flowException_finalizerFailureAddedAsSuppressed() {
+    Flower flower = flower(EC_FailingFlow.class, EC_FlowExceptionProfile.class, EC_FlowExceptionFinalizerProfile.class);
+    try {
+      ExecutionException e =
+          assertThrows(
+              ExecutionException.class,
+              () -> runFlow(flower, EC_FailingFlow.class, new EC_FailingFlow()));
+      Throwable flowException = e.getCause();
+      assertEquals("STEP_FAILED", flowException.getMessage());
+      assertEquals(1, flowException.getSuppressed().length);
+      assertEquals("FLOW_EXCEPTION_FINALIZER", flowException.getSuppressed()[0].getMessage());
     } finally {
       flower.shutdownScheduler();
     }
@@ -487,5 +568,100 @@ class EC_SyncOutProfile {
   @EventFunction(types = EventType.BEFORE_STEP)
   static void read(@In Integer value) {
     seen.set(value);
+  }
+}
+
+// ---------------- AFTER_FLOW / FLOW_EXCEPTION ----------------
+
+@FlowType(name = "Test", firstStep = "step")
+@EventProfiles({EC_EndProfile.class})
+class EC_EndFlow {
+  @SimpleStepFunction
+  static Transition step(@Terminal Transition end) {
+    return end;
+  }
+}
+
+@EventProfileContainer(name = "EC_EndProfile")
+class EC_EndProfile {
+  static final AtomicBoolean afterFlowBlockingDone = new AtomicBoolean();
+  static CountDownLatch releaseNonBlocking = new CountDownLatch(1);
+
+  public EC_EndProfile() {}
+
+  static void reset() {
+    afterFlowBlockingDone.set(false);
+    releaseNonBlocking = new CountDownLatch(1);
+  }
+
+  // BLOCKING runs on the scheduler, so this only passes if the Flow waits for it
+  @EventFunction(types = EventType.AFTER_FLOW, concurrency = Concurrency.BLOCKING)
+  static void afterFlowBlocking() throws InterruptedException {
+    Thread.sleep(100);
+    afterFlowBlockingDone.set(true);
+  }
+
+  @EventFunction(types = EventType.AFTER_FLOW, concurrency = Concurrency.NON_BLOCKING)
+  static void afterFlowNonBlocking() throws InterruptedException {
+    releaseNonBlocking.await(10, TimeUnit.SECONDS);
+  }
+}
+
+@FlowType(name = "Test", firstStep = "step")
+@EventProfiles({EC_AfterFlowFinalizerProfile.class})
+class EC_AfterFlowFinalizerFlow {
+  @SimpleStepFunction
+  static Transition step(@Terminal Transition end) {
+    return end;
+  }
+}
+
+@EventProfileContainer(name = "EC_AfterFlowFinalizerProfile")
+class EC_AfterFlowFinalizerProfile {
+  static final AtomicReference<String> flowException = new AtomicReference<>();
+
+  public EC_AfterFlowFinalizerProfile() {}
+
+  @EventFunction(types = EventType.AFTER_FLOW, concurrency = Concurrency.FINALIZER)
+  static void afterFlowFinalizer() {
+    throw new RuntimeException("AFTER_FLOW_FINALIZER");
+  }
+
+  @EventFunction(types = EventType.FLOW_EXCEPTION, concurrency = Concurrency.FINALIZER)
+  static void onFlowException(@FlowException Throwable exception) {
+    flowException.set(exception.getMessage());
+  }
+}
+
+@FlowType(name = "Test", firstStep = "step")
+@EventProfiles({EC_FlowExceptionProfile.class, EC_FlowExceptionFinalizerProfile.class})
+class EC_FailingFlow {
+  @SimpleStepFunction
+  static Transition step(@Terminal Transition end) {
+    throw new RuntimeException("STEP_FAILED");
+  }
+}
+
+@EventProfileContainer(name = "EC_FlowExceptionProfile")
+class EC_FlowExceptionProfile {
+  static final AtomicBoolean blockingDone = new AtomicBoolean();
+
+  public EC_FlowExceptionProfile() {}
+
+  // BLOCKING runs on the scheduler, so this only passes if the Flow waits for it
+  @EventFunction(types = EventType.FLOW_EXCEPTION, concurrency = Concurrency.BLOCKING)
+  static void onFlowException() throws InterruptedException {
+    Thread.sleep(100);
+    blockingDone.set(true);
+  }
+}
+
+@EventProfileContainer(name = "EC_FlowExceptionFinalizerProfile")
+class EC_FlowExceptionFinalizerProfile {
+  public EC_FlowExceptionFinalizerProfile() {}
+
+  @EventFunction(types = EventType.FLOW_EXCEPTION, concurrency = Concurrency.FINALIZER)
+  static void onFlowException() {
+    throw new RuntimeException("FLOW_EXCEPTION_FINALIZER");
   }
 }

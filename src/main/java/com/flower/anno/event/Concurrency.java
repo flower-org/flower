@@ -13,6 +13,11 @@ package com.flower.anno.event;
  * 4) After all events except NON_BLOCKING and FINALIZERs from all the Profiles have finished, run FINALIZERs sequentially.
  * 5) Resume Flow execution, if no FINALIZER failed.
  *
+ * This applies to all EventTypes, including AFTER_FLOW and FLOW_EXCEPTION: the Flow's future completes
+ * once their FINALIZER, SYNCHRONIZED and BLOCKING Events are done. A failing AFTER_FLOW FINALIZER fails
+ * the Flow (which then runs FLOW_EXCEPTION Events); a failing FLOW_EXCEPTION FINALIZER is added as
+ * suppressed to the Flow's exception.
+ *
  * NON_BLOCKING and BLOCKING Events are called on the Flow's scheduler, so synchronous functions run concurrently.
  * Event parameters are read when the function is started, so NON_BLOCKING and BLOCKING Events don't see
  * EventProfile State updates made by SYNCHRONIZED and FINALIZER Events for the same Event.

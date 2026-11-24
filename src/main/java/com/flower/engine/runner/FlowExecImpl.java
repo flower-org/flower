@@ -1,5 +1,7 @@
 package com.flower.engine.runner;
 
+import static com.flower.utilities.FuturesTool.directExecutor;
+
 import com.flower.anno.event.EventType;
 import com.flower.conf.FlowExec;
 import com.flower.conf.FlowExecCallback;
@@ -125,28 +127,25 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
           flowCallContext.firstStepName,
           settableFlowFuture);
 
+      // AFTER_FLOW / FLOW_EXCEPTION events are awaited like any other event: the Flow completes once
+      // their blocking stages (FINALIZER, SYNCHRONIZED, BLOCKING) are done; NON_BLOCKING ones aren't
+      // awaited.
       CompletableFuture<T> flowFuture =
-          FuturesTool.transform(
+          FuturesTool.transformAsync(
               settableFlowFuture,
               t -> {
                 flow.setStepInfo(null);
-                CompletableFuture<Void> unused =
-                    flowCallContext.runEvents(EventType.AFTER_FLOW, flow, flow, null, null);
-                return t;
+                // A failing FINALIZER fails the Flow (which then runs FLOW_EXCEPTION events)
+                return FuturesTool.transform(
+                    flowCallContext.runEvents(EventType.AFTER_FLOW, flow, flow, null, null),
+                    void_ -> t,
+                    directExecutor());
               },
               scheduler);
 
       checkReturnValue =
           FuturesTool.catchingAsync(
-              FuturesTool.transformAsync(flowFuture, f -> flowFuture, scheduler),
-              Throwable.class,
-              t -> {
-                flow.setStepInfo(null);
-                CompletableFuture<Void> unused =
-                    flowCallContext.runEvents(EventType.FLOW_EXCEPTION, flow, flow, null, t);
-                return flowFuture;
-              },
-              scheduler);
+              flowFuture, Throwable.class, t -> runFlowExceptionEvents(flow, t), scheduler);
 
       flowExecCallback.flowStarted(flowId, checkReturnValue);
 
@@ -157,11 +156,38 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
       return new SimpleFlowFuture<>(flowId, checkReturnValue);
     } catch (Throwable t) {
       if (flow_ != null) {
-        CompletableFuture<Void> unused =
-            flowCallContext.runEvents(EventType.FLOW_EXCEPTION, flow_, flow_, null, t);
+        return new SimpleFlowFuture<>(flowId, runFlowExceptionEvents(flow_, t));
       }
       return new SimpleFlowFuture<>(flowId, CompletableFuture.failedFuture(t));
     }
+  }
+
+  /**
+   * Runs FLOW_EXCEPTION events and returns a future that fails with {@code flowException} once their
+   * blocking stages are done. If a FINALIZER fails, its exception is added to {@code flowException}
+   * as suppressed, so it isn't lost.
+   */
+  CompletableFuture<T> runFlowExceptionEvents(FlowImpl<T> flow, Throwable flowException) {
+    flow.setStepInfo(null);
+    CompletableFuture<Void> events;
+    try {
+      events = flowCallContext.runEvents(EventType.FLOW_EXCEPTION, flow, flow, null, flowException);
+    } catch (Throwable t) {
+      events = CompletableFuture.failedFuture(t);
+    }
+    CompletableFuture<T> result = new CompletableFuture<>();
+    CompletableFuture<Void> unused =
+        events.whenComplete(
+            (void_, eventsException) -> {
+              if (eventsException != null) {
+                Throwable cause = FuturesTool.unwrap(eventsException);
+                if (cause != flowException) {
+                  flowException.addSuppressed(cause);
+                }
+              }
+              result.completeExceptionally(flowException);
+            });
+    return result;
   }
 
   @Override
