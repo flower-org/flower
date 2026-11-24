@@ -13,7 +13,7 @@ import com.flower.engine.function.ParameterType;
 import com.flower.engine.runner.event.EventParametersProvider;
 import com.flower.engine.runner.state.StateAccess;
 import com.flower.engine.runner.step.InternalTransition;
-import com.flower.utilities.FuturesTool;
+import com.flower.utilities.LegacyFuturesTool;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -40,7 +40,7 @@ public class FunctionCallUtil {
           rawInvokeFunction(callContext.function, functionCallParameters);
 
       // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(functionFuture,
+      return LegacyFuturesTool.tryCatchAsync(functionFuture,
           functionReturnValue ->
               updateState(
                   callState.stateAccess,
@@ -131,7 +131,7 @@ public class FunctionCallUtil {
           rawInvokeFunction(callContext.function, functionParameterObjects);
 
       // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(
+      return LegacyFuturesTool.tryCatchAsync(
           functionFuture,
           functionReturnValue ->
               updateTransitionState(
@@ -177,7 +177,7 @@ public class FunctionCallUtil {
           rawInvokeFunction(callContext.function, functionParameterObjects);
 
       // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(
+      return LegacyFuturesTool.tryCatchAsync(
           functionFuture,
           functionReturnValue ->
               updateTransitionState(
@@ -313,7 +313,7 @@ public class FunctionCallUtil {
         rawInvokeFunction(callContext.function, functionCallParameters);
 
     // 3) Update Flow state with Output parameters
-    return FuturesTool.tryCatchAsync(
+    return LegacyFuturesTool.tryCatchAsync(
         functionFuture,
         functionReturnValue ->
             updateTransitionState(
@@ -415,7 +415,7 @@ public class FunctionCallUtil {
       }
 
       // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(
+      return LegacyFuturesTool.tryCatchAsync(
           functionFuture,
           functionReturnValue ->
               updateEventState(

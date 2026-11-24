@@ -1,18 +1,16 @@
 package com.flower.utilities;
 
-import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
@@ -26,7 +24,7 @@ public class FutureCombiner {
    * @param <T> Result type
    * @return Future that returns a List containing original Future's result.
    */
-  public static <T> ListenableFuture<List<T>> chainResults(ListenableFuture<T> result) {
+  public static <T> CompletableFuture<List<T>> chainResults(CompletableFuture<T> result) {
     return chainResults(result, null);
   }
 
@@ -39,20 +37,20 @@ public class FutureCombiner {
    * @param <T> Result type
    * @return Future that returns mainResultList plus nextResult
    */
-  public static <T> ListenableFuture<List<T>> chainResults(
-      ListenableFuture<T> nextResult, @Nullable ListenableFuture<List<T>> mainResultList) {
+  public static <T> CompletableFuture<List<T>> chainResults(
+      CompletableFuture<T> nextResult, @Nullable CompletableFuture<List<T>> mainResultList) {
     if (mainResultList == null) {
-      return chainResults(nextResult, Futures.immediateFuture(new ArrayList<>()));
+      return chainResults(nextResult, CompletableFuture.completedFuture(new ArrayList<>()));
     } else {
-      return Futures.whenAllComplete(nextResult, mainResultList)
-          .call(
-              () -> {
-                List<T> list = mainResultList.get();
-                T element = nextResult.get();
-                list.add(element);
-                return list;
-              },
-              directExecutor());
+      return FuturesTool.whenAllCompleteCall(
+          List.of(nextResult, mainResultList),
+          () -> {
+            List<T> list = getDone(mainResultList);
+            T element = getDone(nextResult);
+            list.add(element);
+            return list;
+          },
+          FuturesTool.directExecutor());
     }
   }
 
@@ -65,70 +63,67 @@ public class FutureCombiner {
    * @param <T> Result type
    * @return Future that returns mainResultList plus nextResults
    */
-  public static <T> ListenableFuture<List<T>> chainListResults(
-      @Nullable ListenableFuture<List<T>> nextResults,
-      @Nullable ListenableFuture<List<T>> mainResultList) {
+  public static <T> CompletableFuture<List<T>> chainListResults(
+      @Nullable CompletableFuture<List<T>> nextResults,
+      @Nullable CompletableFuture<List<T>> mainResultList) {
     if (mainResultList == null && nextResults == null)
-      return Futures.immediateFuture(new ArrayList<>());
+      return CompletableFuture.completedFuture(new ArrayList<>());
     else if (mainResultList == null) return Preconditions.checkNotNull(nextResults);
     else if (nextResults == null) return Preconditions.checkNotNull(mainResultList);
     else {
-      return Futures.whenAllComplete(nextResults, mainResultList)
-          .call(
-              () -> {
-                List<T> list1 = mainResultList.get();
-                List<T> list2 = nextResults.get();
-                list1.addAll(list2);
-                return list1;
-              },
-              directExecutor());
+      return FuturesTool.whenAllCompleteCall(
+          List.of(nextResults, mainResultList),
+          () -> {
+            List<T> list1 = getDone(mainResultList);
+            List<T> list2 = getDone(nextResults);
+            list1.addAll(list2);
+            return list1;
+          },
+          FuturesTool.directExecutor());
     }
   }
 
   /**
    * Creates a Future that returns a List of results containing all elements of all futures passed
-   * as an argument
+   * as an argument. Fails if any of the futures fails.
    *
-   * @param futures Futures that should be combined
+   * @param futures Futures that should be combined (null elements are ignored)
    * @param <T> Result type
    * @return Future that returns a list with elements from all futures
    */
   @SafeVarargs
-  public static <T> ListenableFuture<List<T>> chainListResults(
-      ListenableFuture<List<T>>... futures) {
-    ImmutableList<ListenableFuture<List<T>>> futuresList =
+  public static <T> CompletableFuture<List<T>> chainListResults(
+      CompletableFuture<List<T>>... futures) {
+    ImmutableList<CompletableFuture<List<T>>> futuresList =
         Arrays.stream(futures).filter(Objects::nonNull).collect(ImmutableList.toImmutableList());
 
     if (futuresList.isEmpty()) {
-      return Futures.immediateFuture(ImmutableList.of());
+      return CompletableFuture.completedFuture(ImmutableList.of());
     }
 
-    return Futures.whenAllSucceed(futuresList)
-        .call(
-            () -> {
-              ImmutableList.Builder<T> resultsBuilder = ImmutableList.builder();
-
-              for (ListenableFuture<List<T>> future : futuresList) {
-                resultsBuilder.addAll(Futures.getDone(future));
-              }
-
-              return resultsBuilder.build();
-            },
-            directExecutor());
+    return FuturesTool.transform(
+        CompletableFuture.allOf(futuresList.toArray(new CompletableFuture<?>[0])),
+        ignored -> {
+          ImmutableList.Builder<T> resultsBuilder = ImmutableList.builder();
+          for (CompletableFuture<List<T>> future : futuresList) {
+            resultsBuilder.addAll(future.join());
+          }
+          return resultsBuilder.build();
+        },
+        FuturesTool.directExecutor());
   }
 
   /**
-   * Transforms a Future with a nested Future into a single Future. Can be used to simplify
-   * scheduling with ScheduledExecutorService.
+   * Transforms a Future with a nested Future into a single Future.
    *
    * @param future Future that returns another Future that returns a result
    * @param <T> Result type
    * @return Future that returns a result
    */
-  public static <T> ListenableFuture<T> collapseNestedFuture(
-      ListenableFuture<ListenableFuture<T>> future) {
-    return Futures.transformAsync(
-        future, nestedFuture -> nestedFuture, MoreExecutors.directExecutor());
+  public static <T> CompletableFuture<T> collapseNestedFuture(
+      CompletableFuture<CompletableFuture<T>> future) {
+    return FuturesTool.transformAsync(
+        future, nestedFuture -> nestedFuture, FuturesTool.directExecutor());
   }
 
   /**
@@ -141,16 +136,16 @@ public class FutureCombiner {
    * @param <T> Result type
    * @return Future of delayed function execution
    */
-  public static <T> ListenableFuture<T> delayExecutionAsync(
-      ListeningScheduledExecutorService scheduler,
+  public static <T> CompletableFuture<T> delayExecutionAsync(
+      ScheduledExecutorService scheduler,
       long delay,
       TimeUnit timeUnit,
-      Callable<ListenableFuture<T>> callable) {
-    return collapseNestedFuture(scheduler.schedule(callable, delay, timeUnit));
+      Callable<CompletableFuture<T>> callable) {
+    return collapseNestedFuture(delayExecution(scheduler, delay, timeUnit, callable));
   }
 
   /**
-   * Executes a function with a delay
+   * Executes a function with a delay. Cancelling the returned Future cancels the scheduled task.
    *
    * @param scheduler Scheduler
    * @param delay Delay
@@ -159,11 +154,48 @@ public class FutureCombiner {
    * @param <T> Result type
    * @return Future of delayed function execution
    */
-  public static <T> ListenableFuture<T> delayExecution(
-      ListeningScheduledExecutorService scheduler,
-      long delay,
-      TimeUnit timeUnit,
-      Callable<T> callable) {
-    return scheduler.schedule(callable, delay, timeUnit);
+  public static <T> CompletableFuture<T> delayExecution(
+      ScheduledExecutorService scheduler, long delay, TimeUnit timeUnit, Callable<T> callable) {
+    CompletableFuture<T> result = new CompletableFuture<>();
+    ScheduledFuture<?> scheduledTask;
+    try {
+      scheduledTask =
+          scheduler.schedule(
+              () -> {
+                try {
+                  result.complete(callable.call());
+                } catch (Throwable t) {
+                  result.completeExceptionally(t);
+                }
+              },
+              delay,
+              timeUnit);
+    } catch (Throwable t) {
+      result.completeExceptionally(t);
+      return result;
+    }
+    CompletableFuture<?> ignored =
+        result.whenComplete(
+        (v, t) -> {
+          if (result.isCancelled()) {
+            scheduledTask.cancel(false);
+          }
+        });
+    return result;
+  }
+
+  /** Value of an already completed future; failures are rethrown unwrapped. */
+  private static <T> T getDone(CompletableFuture<T> future) throws Exception {
+    try {
+      return future.join();
+    } catch (CompletionException e) {
+      Throwable cause = FuturesTool.unwrap(e);
+      if (cause instanceof Exception) {
+        throw (Exception) cause;
+      } else if (cause instanceof Error) {
+        throw (Error) cause;
+      }
+      throw e;
+    }
   }
 }

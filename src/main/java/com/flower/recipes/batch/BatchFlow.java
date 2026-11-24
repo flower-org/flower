@@ -12,7 +12,7 @@ import com.flower.conf.FlowFactoryPrm;
 import com.flower.conf.FlowFuture;
 import com.flower.conf.OutPrm;
 import com.flower.conf.Transition;
-import com.flower.utilities.FuturesTool;
+import com.flower.utilities.LegacyFuturesTool;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -117,7 +117,7 @@ public class BatchFlow<CHILD_ID, PROGRESS_MSG, FLOW> {
 
     // If there are still active flows, wait and repeat
     return Futures.transform(
-        FuturesTool.whenAnyCompleteIgnoreResult(
+        LegacyFuturesTool.whenAnyCompleteIgnoreResult(
             inProgressMap.values().stream().map(FlowFuture::getFuture).toList(),
             MoreExecutors.directExecutor()),
         ignored -> runBatch,

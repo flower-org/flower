@@ -13,8 +13,8 @@ import com.flower.engine.FlowerId;
 import com.flower.engine.runner.step.InternalTransition;
 import com.flower.engine.runner.step.StepCallContext;
 import com.flower.utilities.FlowerException;
-import com.flower.utilities.FutureCombiner;
-import com.flower.utilities.FuturesTool;
+import com.flower.utilities.LegacyFutureCombiner;
+import com.flower.utilities.LegacyFuturesTool;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
@@ -292,8 +292,8 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
                     Duration delay = transition.getDelay();
 
                     // Flow finished after a delay
-                    FuturesTool.assignSettableFuture(
-                        FutureCombiner.delayExecutionAsync(
+                    LegacyFuturesTool.assignSettableFuture(
+                        LegacyFutureCombiner.delayExecutionAsync(
                             scheduler,
                             delay.toNanos(),
                             TimeUnit.NANOSECONDS,
@@ -302,7 +302,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
                         scheduler);
                   } else {
                     // Flow finished
-                    FuturesTool.assignSettableFuture(
+                    LegacyFuturesTool.assignSettableFuture(
                         runEventsForLastStep(flowInstance), settableFuture, scheduler);
                   }
                 } else {
@@ -321,7 +321,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
       FlowImpl<T> flowInstance, InternalTransition transition, SettableFuture<T> settableFuture) {
     if (transition.getDelay() != null) {
       Duration delay = transition.getDelay();
-      FutureCombiner.delayExecutionAsync(
+      LegacyFutureCombiner.delayExecutionAsync(
           scheduler,
           delay.toNanos(),
           TimeUnit.NANOSECONDS,
