@@ -5,6 +5,8 @@ Flower is a lightweight workflow engine.
 
 [Introduction](#introduction)
 
+[Programming model: procedural style, concurrent execution](#programming-model-procedural-style-concurrent-execution)
+
 [Example: "Hello world" flow](#example-1-hello-world-flow)
 
 [Example: Initializing Flower and running an instance of "Hello world" flow](#example-2-initializing-flower-and-running-an-instance-of-hello-world-flow)
@@ -55,6 +57,19 @@ On top of that, Flower programming model presents other noteworthy properties:
 It's important to note, that while Flower model does not prohibit distributed execution on a cluster of machines, the current version of Flower Engine is implemented as a lightweight library that doesn't provide clustering features out of the box, and it's not in our current milestones. The reasons are that right now we're in the earliest phase in the development of technology that can grow into something much bigger, and the main goal is to prove beyond any doubt that the model works well for its purpose, and works well on what can be referred to as "micro-level", being used as a structuring layer on top of CompletableFutures for the class of tasks that are usually programmed directly with Futures, not in the last place because we have very good use cases to utilize Flower in this capacity. Should this effort prove successful, there would be no better incentive to make it clustered and horizontally scalable. This early phase is also important because what is emerging here can be viewed as a programming paradigm very different from anything else I've seen before, and the value of proving that it works as a concept can't be underestimated.
 
 Some of my far-fetched thoughts and dreams of how Flower's model can change current architectural patterns when applied on a mesh scale can be found in Appendix. **TODO: Appendix with idea about replacing microservice architecture pattern**
+
+
+## Programming model: procedural style, concurrent execution
+
+Flower Flows read like procedural code: do this Step, look at the result, decide which Step goes next. Retries, waits, branches and loops are spelled out explicitly as Transitions between Steps, instead of being scattered across callbacks.
+
+Under the hood, however, execution is fully concurrent and non-blocking:
+- Every Step is a non-blocking stage executed on a shared scheduler, so thousands of Flows can run on a handful of threads. Waiting - for a `CompletableFuture` returned by a Step, or for a delayed Transition - doesn't occupy any thread;
+- Steps of a single Flow Instance run one at a time, and they interact with Flow State only through declared parameters (`@In`, `@Out`, `@InOut`). Flow logic therefore needs no locks, even though everything around it runs concurrently;
+- Cross-cutting logic - logging, metrics, persistence - lives in Event Profiles, with explicit rules about what blocks the Flow, what runs in parallel and what can update state (see [Events and Event Concurrency](#events-and-event-concurrency));
+- Procedural and event-driven styles combine via `@EventBus`: a Step can register several things it waits for - child Flows, pushed messages, timers - and a later Step reacts to whichever of them happens first, much like `select` in Go or Tokio's `select!` in Rust, but at the level of a whole Flow and without blocking a thread (see [Flower engine parameters](#flower-engine-parameters)).
+
+The one discipline this model requires is described in [Don't block inside Steps](#dont-block-inside-steps).
 
 
 ## Example 1: "Hello world" flow
@@ -141,6 +156,18 @@ Here's an example of how a `HELLO_STEP` function from [example 1](#example-1-hel
     11 |  }
     
 In this case `@TransitFunction` will be executed right after `@StepFunction` (i.e. if Step function returns a `CompletableFuture`, after that Future completes). The main reason for implementing this split is to provide a mechanism to reuse both parts, importantly - Transitioner part. We'll discuss this in further detail after function parameters are covered, in section [Reusing Transit Functions](#reusing-transit-functions).
+
+### Don't block inside Steps
+
+All Functions run on Flower's scheduler, which is shared by all Flows and typically has only a few threads. A Function that blocks - `Thread.sleep(...)`, `Future.get()`, synchronous I/O, waiting on a lock - holds one of those threads, and with it every other Flow that could have run on it.
+
+Instead, when a Step needs to wait:
+- return a `CompletableFuture` (e.g. from an asynchronous client) - the Flow continues when it completes;
+- to wait for a period of time, return a delayed Transition (`transition.setDelay(Duration)`);
+- to wait for whichever of several events happens first, register them on the Flow's `@EventBus` and wait on `next()`;
+- if blocking code can't be avoided, run it on a separate executor and return the resulting `CompletableFuture`; `@Exec` can be used to continue on Flower's executor afterwards.
+
+The same applies to Event Functions, which also run on Flower's scheduler. Note that `BLOCKING`, `SYNCHRONIZED` and `FINALIZER` mean that the Flow waits for those Event Functions, not that they may block a thread.
 
 
 ## Flow and Function names
