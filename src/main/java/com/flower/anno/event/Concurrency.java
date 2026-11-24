@@ -3,31 +3,38 @@ package com.flower.anno.event;
 /**
  * Defines Concurrency for the Event handler.
  *
- * Execution order:
- * 1) Fire and forget all PARALLEL Events on all EventProfiles;
+ * Execution order for a given Event:
+ * 1) Fire and forget all NON_BLOCKING Events on all EventProfiles;
  * 2) At the same time, start all BLOCKING Events in parallel on all EventProfiles;
  *      keep track of BLOCKING Events per EventProfile and wait for them to finish;
  * 3) For a given EventProfile, when all BLOCKING Events on that EventProfile are done, run SYNCHRONIZED Events sequentially for that EventProfile
  *      (i.e. different EventProfiles still run their SYNCHRONIZED Events in parallel,
  *      but for a particular EventProfile its SYNCHRONIZED Events are executed sequentially);
- * 4) After all events except PARALLEL and other FINALIZERs from all the Profiles have finished, run FINALIZERs.
+ * 4) After all events except NON_BLOCKING and FINALIZERs from all the Profiles have finished, run FINALIZERs sequentially.
  * 5) Resume Flow execution, if no FINALIZER failed.
+ *
+ * NON_BLOCKING and BLOCKING Events are called on the Flow's scheduler, so synchronous functions run concurrently.
+ * Event parameters are read when the function is started, so NON_BLOCKING and BLOCKING Events don't see
+ * EventProfile State updates made by SYNCHRONIZED and FINALIZER Events for the same Event.
+ * Exceptions raised by NON_BLOCKING, BLOCKING and SYNCHRONIZED Events are ignored and don't affect the Flow.
+ * Events can't update Flow State; only SYNCHRONIZED and FINALIZER Events can update their own
+ * EventProfile State (@Out/@InOut).
  */
 public enum Concurrency {
-  /** Doesn't block the Flow. Doesn't block other event handlers.
+  /** Doesn't block the Flow. Doesn't block other event handlers. Default.
    * EventProfile State update using @Out/@InOut is NOT allowed. */
-  PARALLEL,
+  NON_BLOCKING,
   /** Blocks the Flow. Doesn't block other event handlers.
-   * EventProfile State using @Out/@InOut is NOT allowed.  */
+   * EventProfile State update using @Out/@InOut is NOT allowed. */
   BLOCKING,
-  /** Blocks the Flow. Blocks other event handlers in the same EvenProfile.
+  /** Blocks the Flow. Blocks other event handlers in the same EventProfile.
    * EventProfile State update using @Out/@InOut is ALLOWED. */
   //TODO: Priority / Order
   SYNCHRONIZED,
   /**
-   * Runs after all events that are not FINALIZER or PARALLEL from all the EventProfiles have finished.
+   * Runs after all events that are not FINALIZER or NON_BLOCKING from all the EventProfiles have finished.
    * Blocks the Flow. Blocks other event handlers on all EventProfiles related to the Flow.
-   * Any raised Exception will also fail the Flow.
+   * Any raised Exception will also fail the Flow (remaining FINALIZERs are skipped).
    * Raised Exception can't be caught in a Transitioner, the Flow will fail!
    * EventProfile State update using @Out/@InOut is ALLOWED.
    */
@@ -45,7 +52,7 @@ public enum Concurrency {
 
   // FINALIZER / Philosophy:
   //  It's possible to think about BREAKING as of a property independent of CONCURRENCY. They're
-  //  somewhat connected though, for example BREAKING can't be used with PARALLEL, because BREAKING
+  //  somewhat connected though, for example BREAKING can't be used with NON_BLOCKING, because BREAKING
   //  as a concept assumes that it can't be run in parallel with Flow functionality. Similarly,
   //  implementing BREAKING with BLOCKING is possible, but will require rethinking of Flow being
   //  single threaded, with only one Exception possible to happen in the main path of Execution. For
@@ -55,17 +62,17 @@ public enum Concurrency {
   // TODO:
   //  Consideration for OUT parameters and EventProfile state change.
   //  - everything is Nullable unless it's set by FINALIZER, because of possible exceptions;
-  //  - When we run PARALLEL, there is no guarantee about when and in what order it finishes, so we can't let
-  //    OUT come from PARALLEL;
+  //  - When we run NON_BLOCKING, there is no guarantee about when and in what order it finishes, so we can't let
+  //    OUT come from NON_BLOCKING;
   //  - Do we allow multiple event handlers of the BLOCKING type on Event Profile? If we do, and they run in parallel,
   //    then the same consideration can be applied to BLOCKING, because 2 BLOCKING handlers can try to OUT-update the same value;
   //    If, however, they run sequentially, then that's not an issue.
-  //  - We can still indirectly update state in PARALLEL: for example by `@In AtomicInteger i`, `i.incrementAndGet()`.
+  //  - We can still indirectly update state in NON_BLOCKING: for example by `@In AtomicInteger i`, `i.incrementAndGet()`.
 
   //TODO: Note:
   //  Note that in order to enable state save we need some final state on Flow and all stateful EventProfiles.
   //  We consider EventProfiles stateful if they are serializable.
-  //  That's why we can't allow updating EventProfileState from PARALLEL, and that's why if we allow such update from BLOCKING
+  //  That's why we can't allow updating EventProfileState from NON_BLOCKING, and that's why if we allow such update from BLOCKING
   //  we must run all of BLOCKING on EventProfile sequentially, so that we don't get any issues with concurrent state updates.
   //  Alternatively, we can only allow state update from SYNCHRONIZED.
 }

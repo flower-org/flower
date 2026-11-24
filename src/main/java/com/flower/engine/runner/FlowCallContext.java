@@ -91,7 +91,7 @@ public class FlowCallContext implements EventRunner {
       EventParametersProvider eventParametersProvider,
       @Nullable Transition transition,
       @Nullable Throwable flowException) {
-    List<EventFunctionContext> eventFunctionList = new ArrayList<>();
+    List<List<EventFunctionContext>> eventFunctionsByProfile = new ArrayList<>();
 
     for (Map.Entry<Class<?>, EventProfileForFlowTypeCallContext> entry : eventContexts.entrySet()) {
       Class<?> profileNameType = entry.getKey();
@@ -101,12 +101,17 @@ public class FlowCallContext implements EventRunner {
 
       EventFunctions eventFunctions = callContext.getFunctionsForEventType(eventType);
       if (eventFunctions != null)
-        eventFunctionList.addAll(
+        eventFunctionsByProfile.add(
             eventFunctions.getFunctions(eventContext.getFlowState(), eventProfileState));
     }
 
     return EventRunUtil.runEvents(
-        eventFunctionList, eventParametersProvider, eventType, transition, flowException);
+        eventFunctionsByProfile,
+        eventParametersProvider,
+        eventType,
+        transition,
+        flowException,
+        scheduler);
   }
 
   <T> Pair<FlowImpl<T>, CompletableFuture<InternalTransition>> runFirstStep(FlowImpl<T> flow) {

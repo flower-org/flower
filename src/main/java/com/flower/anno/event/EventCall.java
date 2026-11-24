@@ -31,5 +31,5 @@ public @interface EventCall {
   EventType[] types();
 
   /** @return Concurrency level */
-  Concurrency concurrency() default Concurrency.PARALLEL;
+  Concurrency concurrency() default Concurrency.NON_BLOCKING;
 }

@@ -12,78 +12,127 @@ import com.flower.utilities.FuturesTool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 
 public class EventRunUtil {
-  @SuppressWarnings("CheckReturnValue")
+  /**
+   * Runs Event functions of all EventProfiles of a Flow for a single Event. See {@link
+   * com.flower.anno.event.Concurrency} for the execution order.
+   *
+   * @param functionsByProfile Event functions, grouped by EventProfile
+   * @return future that completes when all functions except NON_BLOCKING ones are done; fails only if a
+   *     FINALIZER function fails
+   */
   public static CompletableFuture<Void> runEvents(
-      List<EventFunctionContext> functions,
+      List<List<EventFunctionContext>> functionsByProfile,
       EventParametersProvider eventParametersProvider,
       EventType eventType,
       @Nullable Transition transition,
-      @Nullable Throwable flowException) {
-    if (functions.isEmpty()) return CompletableFuture.completedFuture(null);
+      @Nullable Throwable flowException,
+      Executor scheduler) {
+    if (functionsByProfile.stream().allMatch(List::isEmpty)) {
+      return CompletableFuture.completedFuture(null);
+    }
 
-    List<EventFunctionContext> parallelFunctions = new ArrayList<>();
-    List<EventFunctionContext> blockingFunctions = new ArrayList<>();
-    List<EventFunctionContext> synchronizedFunctions = new ArrayList<>();
-    List<EventFunctionContext> synchronizedBreakingFunctions = new ArrayList<>();
+    List<EventFunctionContext> nonBlockingFunctions = new ArrayList<>();
+    List<EventFunctionContext> finalizerFunctions = new ArrayList<>();
+    List<List<EventFunctionContext>> blockingByProfile = new ArrayList<>();
+    List<List<EventFunctionContext>> synchronizedByProfile = new ArrayList<>();
+    int profilesWithSynchronized = 0;
 
-    for (EventFunctionContext function : functions) {
-      switch (function.eventFunction.concurrency) {
-        case PARALLEL:
-          parallelFunctions.add(function);
-          break;
-        case BLOCKING:
-          blockingFunctions.add(function);
-          break;
-        case SYNCHRONIZED:
-          synchronizedFunctions.add(function);
-          break;
-        case FINALIZER:
-          synchronizedBreakingFunctions.add(function);
-          break;
+    for (List<EventFunctionContext> profileFunctions : functionsByProfile) {
+      List<EventFunctionContext> blockingFunctions = new ArrayList<>();
+      List<EventFunctionContext> synchronizedFunctions = new ArrayList<>();
+      for (EventFunctionContext function : profileFunctions) {
+        switch (function.eventFunction.concurrency) {
+          case NON_BLOCKING:
+            nonBlockingFunctions.add(function);
+            break;
+          case BLOCKING:
+            blockingFunctions.add(function);
+            break;
+          case SYNCHRONIZED:
+            synchronizedFunctions.add(function);
+            break;
+          case FINALIZER:
+            finalizerFunctions.add(function);
+            break;
+        }
+      }
+      if (!blockingFunctions.isEmpty() || !synchronizedFunctions.isEmpty()) {
+        blockingByProfile.add(blockingFunctions);
+        synchronizedByProfile.add(synchronizedFunctions);
+        if (!synchronizedFunctions.isEmpty()) {
+          profilesWithSynchronized++;
+        }
       }
     }
 
-    // TODO: only FINALIZER functions are awaited by the returned future; SYNCHRONIZED, BLOCKING and
-    //  PARALLEL groups are started once FINALIZER functions complete, but their futures are not
-    //  awaited (this preserves pre-CompletableFuture-migration behaviour).
-    return FuturesTool.transform(
-        runSequential(
-            synchronizedBreakingFunctions,
-            eventParametersProvider,
-            eventType,
-            transition,
-            flowException,
-            false),
-        void_ -> {
-          CompletableFuture<Void> unusedSynchronized =
-              runSequential(
-                  synchronizedFunctions,
+    // 1) Fire and forget NON_BLOCKING functions of all EventProfiles.
+    CompletableFuture<Void> unusedNonBlocking =
+        runParallel(
+            nonBlockingFunctions, eventParametersProvider, eventType, transition, flowException,
+            scheduler);
+
+    // 2) + 3) Per EventProfile: BLOCKING functions in parallel, then SYNCHRONIZED sequentially.
+    // Different EventProfiles proceed independently. SYNCHRONIZED functions only change their own
+    // EventProfile's state, so if several EventProfiles have them, they're run on the scheduler to
+    // let EventProfiles progress in parallel; otherwise they're run without a thread hop.
+    @Nullable Executor synchronizedExecutor = profilesWithSynchronized > 1 ? scheduler : null;
+    List<CompletableFuture<Void>> profileFutures = new ArrayList<>();
+    for (int i = 0; i < blockingByProfile.size(); i++) {
+      List<EventFunctionContext> synchronizedFunctions = synchronizedByProfile.get(i);
+      profileFutures.add(
+          FuturesTool.transformAsync(
+              runParallel(
+                  blockingByProfile.get(i),
                   eventParametersProvider,
                   eventType,
                   transition,
                   flowException,
-                  true);
-          CompletableFuture<Void> unusedBlocking =
-              runParallel(
-                  blockingFunctions, eventParametersProvider, eventType, transition, flowException);
-          CompletableFuture<Void> unusedParallel =
-              runParallel(
-                  parallelFunctions, eventParametersProvider, eventType, transition, flowException);
-          return null;
-        },
+                  scheduler),
+              void_ ->
+                  runSequential(
+                      synchronizedFunctions,
+                      eventParametersProvider,
+                      eventType,
+                      transition,
+                      flowException,
+                      true,
+                      synchronizedExecutor),
+              directExecutor()));
+    }
+
+    // 4) + 5) Once all EventProfiles are done, FINALIZER functions run sequentially; a failure
+    // fails the returned future (and the Flow).
+    return FuturesTool.transformAsync(
+        FuturesTool.whenAllComplete(profileFutures),
+        void_ ->
+            runSequential(
+                finalizerFunctions,
+                eventParametersProvider,
+                eventType,
+                transition,
+                flowException,
+                false,
+                null),
         directExecutor());
   }
 
+  /**
+   * Runs {@code functions} one after another; each starts once the previous one is done.
+   *
+   * @param invokeExecutor if not null, each function is called on this executor
+   */
   static CompletableFuture<Void> runSequential(
       List<EventFunctionContext> functions,
       EventParametersProvider eventParametersProvider,
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException,
-      boolean hideExceptions) {
+      boolean hideExceptions,
+      @Nullable Executor invokeExecutor) {
     CompletableFuture<Void> currentFuture = CompletableFuture.completedFuture(null);
     for (EventFunctionContext function : functions) {
       currentFuture =
@@ -97,7 +146,8 @@ public class EventRunUtil {
                       eventParametersProvider,
                       eventType,
                       transition,
-                      flowException),
+                      flowException,
+                      invokeExecutor),
               directExecutor());
 
       if (hideExceptions) {
@@ -112,12 +162,21 @@ public class EventRunUtil {
     return currentFuture;
   }
 
+  /**
+   * Starts all {@code functions} at once, each called on {@code executor}, so that synchronous
+   * functions run concurrently. Parameters are read on the current thread. The returned future
+   * completes when all functions are done, and never fails.
+   */
   static CompletableFuture<Void> runParallel(
       List<EventFunctionContext> functions,
       EventParametersProvider eventParametersProvider,
       EventType eventType,
       @Nullable Transition transition,
-      @Nullable Throwable flowException) {
+      @Nullable Throwable flowException,
+      Executor executor) {
+    if (functions.isEmpty()) {
+      return CompletableFuture.completedFuture(null);
+    }
     List<CompletableFuture<Void>> futures = new ArrayList<>();
     for (EventFunctionContext function : functions) {
       futures.add(
@@ -129,7 +188,8 @@ public class EventRunUtil {
                   eventParametersProvider,
                   eventType,
                   transition,
-                  flowException),
+                  flowException,
+                  executor),
               Throwable.class,
               e ->  {
                 // TODO: exception handling - log?
@@ -138,7 +198,7 @@ public class EventRunUtil {
               directExecutor()));
     }
 
-    return FuturesTool.whenAllCompleteCall(futures, () -> null, directExecutor());
+    return FuturesTool.whenAllComplete(futures);
   }
 
   static CompletableFuture<Void> invokeEventFunction(
@@ -148,7 +208,8 @@ public class EventRunUtil {
       EventParametersProvider eventParametersProvider,
       EventType eventType,
       @Nullable Transition transition,
-      @Nullable Throwable flowException) {
+      @Nullable Throwable flowException,
+      @Nullable Executor invokeExecutor) {
     try {
       EventFunctionCallState callState =
           new EventFunctionCallState(flowStateAccess, eventProfileStateAccess);
@@ -158,7 +219,8 @@ public class EventRunUtil {
           eventParametersProvider,
           eventType,
           transition,
-          flowException);
+          flowException,
+          invokeExecutor);
     } catch (Throwable t) {
       return CompletableFuture.failedFuture(t);
     }

@@ -24,7 +24,7 @@ public @interface EventFunction {
   EventType[] types();
 
   /** @return Concurrency level */
-  Concurrency concurrency() default Concurrency.PARALLEL;
+  Concurrency concurrency() default Concurrency.NON_BLOCKING;
 
   /** Execution priority -INFINITY first; +INFINITY last.
    * Only relevant to Concurrency.SYNCHRONIZED and Concurrency.FINALIZER */

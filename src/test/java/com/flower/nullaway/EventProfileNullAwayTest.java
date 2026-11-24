@@ -1,5 +1,6 @@
 package com.flower.nullaway;
 
+import com.flower.anno.event.Concurrency;
 import com.flower.anno.event.EventFunction;
 import com.flower.anno.event.EventProfileContainer;
 import com.flower.anno.flow.State;
@@ -148,7 +149,7 @@ class ENA_TestEventProfile3 {
 
   public ENA_TestEventProfile3() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@InOut InOutPrm<Integer> i1) {}
 }
 
@@ -158,7 +159,7 @@ class ENA_TestEventProfile4 {
 
   public ENA_TestEventProfile4() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@InOut NullableInOutPrm<Integer> i1) {}
 }
 
@@ -168,7 +169,7 @@ class ENA_TestEventProfile5 {
 
   public ENA_TestEventProfile5() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@InOut(out = Output.OPTIONAL) NullableInOutPrm<Integer> i1) {}
 
   @EventFunction(types = {EventType.BEFORE_STEP})
@@ -181,7 +182,7 @@ class ENA_TestEventProfile6 {
 
   public ENA_TestEventProfile6() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@InOut NullableInOutPrm<Integer> i1) {}
 
   @EventFunction(types = {EventType.BEFORE_STEP})
@@ -194,10 +195,10 @@ class ENA_TestEventProfile7 {
 
   public ENA_TestEventProfile7() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@Out(out = Output.OPTIONAL) OutPrm<Integer> i1) {}
 
-  @EventFunction(types = {EventType.BEFORE_STEP})
+  @EventFunction(types = {EventType.BEFORE_STEP}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_STEP(@InOut InOutPrm<Integer> i1) {}
 }
 
@@ -207,10 +208,10 @@ class ENA_TestEventProfile8 {
 
   public ENA_TestEventProfile8() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@Out OutPrm<Integer> i1) {}
 
-  @EventFunction(types = {EventType.BEFORE_STEP})
+  @EventFunction(types = {EventType.BEFORE_STEP}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_STEP(@InOut InOutPrm<Integer> i1) {}
 }
 
@@ -221,13 +222,13 @@ class ENA_TestEventProfile9 {
 
   public ENA_TestEventProfile9() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@Out OutPrm<Integer> i1) {}
 
-  @EventFunction(types = {EventType.AFTER_EXEC})
+  @EventFunction(types = {EventType.AFTER_EXEC}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_EXEC(@Out OutPrm<Integer> i2) {}
 
-  @EventFunction(types = {EventType.FLOW_EXCEPTION})
+  @EventFunction(types = {EventType.FLOW_EXCEPTION}, concurrency = Concurrency.SYNCHRONIZED)
   static void FLOW_EXCEPTION(@InOut InOutPrm<Integer> i1, @In Integer i2) {}
 }
 
@@ -239,13 +240,13 @@ class ENA_TestEventProfile10 {
 
   public ENA_TestEventProfile10() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@Out OutPrm<Integer> i1) {}
 
-  @EventFunction(types = {EventType.BEFORE_STEP})
+  @EventFunction(types = {EventType.BEFORE_STEP}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_STEP(@Out OutPrm<Integer> i2) {}
 
-  @EventFunction(types = {EventType.FLOW_EXCEPTION})
+  @EventFunction(types = {EventType.FLOW_EXCEPTION}, concurrency = Concurrency.SYNCHRONIZED)
   static void FLOW_EXCEPTION(@InOut InOutPrm<Integer> i1, @In Integer i2) {}
 }
 
@@ -264,34 +265,34 @@ class ENA_TestEventProfile {
 
   public ENA_TestEventProfile() {}
 
-  @EventFunction(types = {EventType.BEFORE_FLOW})
+  @EventFunction(types = {EventType.BEFORE_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_FLOW(@Out OutPrm<Integer> i1) {}
 
-  @EventFunction(types = {EventType.BEFORE_STEP})
+  @EventFunction(types = {EventType.BEFORE_STEP}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_STEP(@In Integer i1, @InOut NullableInOutPrm<Integer> i2) {}
 
-  @EventFunction(types = {EventType.BEFORE_STEP_ITERATION})
+  @EventFunction(types = {EventType.BEFORE_STEP_ITERATION}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_STEP_ITERATION(@InOut InOutPrm<Integer> i2, @Out OutPrm<Integer> i3) {}
 
-  @EventFunction(types = {EventType.BEFORE_EXEC})
+  @EventFunction(types = {EventType.BEFORE_EXEC}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_EXEC(@In Integer i3, @InOut NullableInOutPrm<Integer> i4) {}
 
-  @EventFunction(types = {EventType.AFTER_EXEC})
+  @EventFunction(types = {EventType.AFTER_EXEC}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_EXEC(@InOut InOutPrm<Integer> i4, @Out OutPrm<Integer> i5) {}
 
-  @EventFunction(types = {EventType.BEFORE_TRANSIT})
+  @EventFunction(types = {EventType.BEFORE_TRANSIT}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_TRANSIT(@In Integer i5, @InOut NullableInOutPrm<Integer> i6) {}
 
-  @EventFunction(types = {EventType.AFTER_TRANSIT})
+  @EventFunction(types = {EventType.AFTER_TRANSIT}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_TRANSIT(@InOut InOutPrm<Integer> i6, @Out OutPrm<Integer> i7) {}
 
-  @EventFunction(types = {EventType.AFTER_STEP_ITERATION})
+  @EventFunction(types = {EventType.AFTER_STEP_ITERATION}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_STEP_ITERATION(@In Integer i7, @InOut NullableInOutPrm<Integer> i8) {}
 
-  @EventFunction(types = {EventType.AFTER_STEP})
+  @EventFunction(types = {EventType.AFTER_STEP}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_STEP(@InOut InOutPrm<Integer> i8, @Out OutPrm<Integer> i9) {}
 
-  @EventFunction(types = {EventType.AFTER_FLOW})
+  @EventFunction(types = {EventType.AFTER_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_FLOW(@In Integer i9, @InOut NullableInOutPrm<Integer> i10) {}
 }
 
@@ -313,30 +314,30 @@ class ENA_TestEventProfileBIG {
   @EventFunction(types = {EventType.BEFORE_FLOW})
   static void BEFORE_FLOW(@Nullable @In Integer i1) {}
 
-  @EventFunction(types = {EventType.BEFORE_STEP})
+  @EventFunction(types = {EventType.BEFORE_STEP}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_STEP(@InOut NullableInOutPrm<Integer> i2) {}
 
   @EventFunction(types = {EventType.BEFORE_STEP_ITERATION})
   static void BEFORE_STEP_ITERATION(@Nullable @In Integer i3) {}
 
-  @EventFunction(types = {EventType.BEFORE_EXEC})
+  @EventFunction(types = {EventType.BEFORE_EXEC}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_EXEC(@InOut NullableInOutPrm<Integer> i4) {}
 
   @EventFunction(types = {EventType.AFTER_EXEC})
   static void AFTER_EXEC(@Nullable @In Integer i5) {}
 
-  @EventFunction(types = {EventType.BEFORE_TRANSIT})
+  @EventFunction(types = {EventType.BEFORE_TRANSIT}, concurrency = Concurrency.SYNCHRONIZED)
   static void BEFORE_TRANSIT(@InOut NullableInOutPrm<Integer> i6) {}
 
   @EventFunction(types = {EventType.AFTER_TRANSIT})
   static void AFTER_TRANSIT(@Nullable @In Integer i7) {}
 
-  @EventFunction(types = {EventType.AFTER_STEP_ITERATION})
+  @EventFunction(types = {EventType.AFTER_STEP_ITERATION}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_STEP_ITERATION(@InOut NullableInOutPrm<Integer> i8) {}
 
   @EventFunction(types = {EventType.AFTER_STEP})
   static void AFTER_STEP(@Nullable @In Integer i9) {}
 
-  @EventFunction(types = {EventType.AFTER_FLOW})
+  @EventFunction(types = {EventType.AFTER_FLOW}, concurrency = Concurrency.SYNCHRONIZED)
   static void AFTER_FLOW(@InOut NullableInOutPrm<Integer> i10) {}
 }

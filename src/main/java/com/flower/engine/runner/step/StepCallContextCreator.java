@@ -1,5 +1,6 @@
 package com.flower.engine.runner.step;
 
+import com.flower.anno.event.Concurrency;
 import com.flower.anno.params.common.Output;
 import com.flower.conf.Transition;
 import com.flower.engine.configuration.EventCallRecord;
@@ -16,6 +17,7 @@ import com.flower.engine.configuration.TransitParameterOverrideRecord;
 import com.flower.engine.configuration.TransitionerCallRecord;
 import com.flower.engine.configuration.TransitionerRecord;
 import com.flower.engine.function.FunctionCallParameter;
+import com.flower.engine.function.ParameterType;
 import com.flower.engine.runner.FlowRunner;
 import com.flower.engine.runner.callfunc.FunctionCallContext;
 import com.flower.engine.runner.event.EventFunction;
@@ -703,6 +705,11 @@ public class StepCallContextCreator {
             false,
             flowFactories,
             flowRepos);
+    validateEventConcurrency(
+        flowTypeRecord.flowTypeName,
+        eventCallRecord.eventCallName,
+        eventCallRecord.annotation.concurrency(),
+        eventCallContext);
     return new EventFunction(
         eventCallRecord.eventCallName, eventCallRecord.annotation.concurrency(), eventCallContext);
   }
@@ -737,8 +744,41 @@ public class StepCallContextCreator {
             false,
             flowFactories,
             flowRepos);
+    validateEventConcurrency(
+        flowTypeRecord.flowTypeName,
+        eventRecord.eventFunctionName,
+        eventRecord.annotation.concurrency(),
+        eventContext);
     return new EventFunction(
         eventRecord.eventFunctionName, eventRecord.annotation.concurrency(), eventContext);
+  }
+
+  /**
+   * NON_BLOCKING and BLOCKING event functions run concurrently with each other (and NON_BLOCKING with the
+   * Flow), so they're not allowed to update state via @Out/@InOut.
+   */
+  static void validateEventConcurrency(
+      String flowName,
+      String functionOrCallName,
+      Concurrency concurrency,
+      FunctionCallContext eventContext) {
+    if (concurrency != Concurrency.NON_BLOCKING && concurrency != Concurrency.BLOCKING) {
+      return;
+    }
+    for (FunctionCallParameter parameter : eventContext.functionParameters) {
+      ParameterType type = parameter.getFunctionParameterType();
+      if (type == ParameterType.OUT || type == ParameterType.IN_OUT) {
+        throw new IllegalStateException(
+            String.format(
+                "Event Function with concurrency [%s] can't update state: @Out/@InOut are only allowed with [%s] or [%s]. Parameter [%s] Flow [%s] Function/Call [%s]",
+                concurrency,
+                Concurrency.SYNCHRONIZED,
+                Concurrency.FINALIZER,
+                parameter.getFunctionParameterName(),
+                flowName,
+                functionOrCallName));
+      }
+    }
   }
 
   // ----------- Parameters -----------

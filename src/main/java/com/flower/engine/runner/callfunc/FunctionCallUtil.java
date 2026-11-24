@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 
 public class FunctionCallUtil {
@@ -398,6 +399,29 @@ public class FunctionCallUtil {
       EventType eventType,
       @Nullable Transition transition,
       @Nullable Throwable flowException) {
+    return invokeEventFunction(
+        callState,
+        callContext,
+        eventParametersProvider,
+        eventType,
+        transition,
+        flowException,
+        null);
+  }
+
+  /**
+   * @param invokeExecutor if not null, the function itself is called on this executor; otherwise
+   *     it's called on the current thread. Parameters are always read on the current thread, so
+   *     they reflect the state at the time of the event.
+   */
+  public static CompletableFuture<Void> invokeEventFunction(
+      EventFunctionCallState callState,
+      FunctionCallContext callContext,
+      EventParametersProvider eventParametersProvider,
+      EventType eventType,
+      @Nullable Transition transition,
+      @Nullable Throwable flowException,
+      @Nullable Executor invokeExecutor) {
     // 1) Get Function parameters from Flow State
     List<Object> functionCallParameters =
         getEventParametersFromEventProfileAndFlowState(
@@ -406,10 +430,20 @@ public class FunctionCallUtil {
       // 2) Call function
       CompletableFuture<?> functionFuture;
 
-      try {
-        functionFuture = rawInvokeFunction(callContext.function, functionCallParameters);
-      } catch (Throwable t) {
-        functionFuture = CompletableFuture.failedFuture(t);
+      if (invokeExecutor != null) {
+        functionFuture =
+            FuturesTool.transformAsync(
+                CompletableFuture.completedFuture(null),
+                void_ ->
+                    FuturesTool.callAsync(
+                        () -> rawInvokeFunction(callContext.function, functionCallParameters)),
+                invokeExecutor);
+      } else {
+        try {
+          functionFuture = rawInvokeFunction(callContext.function, functionCallParameters);
+        } catch (Throwable t) {
+          functionFuture = CompletableFuture.failedFuture(t);
+        }
       }
 
       // 3) Update Flow state with Output parameters

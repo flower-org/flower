@@ -1,5 +1,6 @@
 package com.flower.stateupdate;
 
+import com.flower.anno.event.Concurrency;
 import java.util.concurrent.CompletableFuture;
 
 import com.flower.anno.event.EventFunction;
@@ -277,7 +278,7 @@ class OnErrorEventProfile {
 
     public OnErrorEventProfile() {}
 
-    @EventFunction(types = EventType.BEFORE_FLOW)
+    @EventFunction(types = EventType.BEFORE_FLOW, concurrency = Concurrency.SYNCHRONIZED)
     static void beforeFlowEvent(@Out OutPrm<String> outStr) {
         outStr.setOutValue("Out From Event");
         throw new RuntimeException("TEST_EXCEPTION");
