@@ -427,7 +427,8 @@ public class FunctionCallUtil {
         getEventParametersFromEventProfileAndFlowState(
             callState, callContext, eventParametersProvider, eventType, transition, flowException);
     try {
-      // 2) Call function
+      // 2) Call function: on invokeExecutor if set (lets synchronous functions run concurrently),
+      // otherwise directly on the current thread.
       CompletableFuture<?> functionFuture;
 
       if (invokeExecutor != null) {
