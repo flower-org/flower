@@ -4,7 +4,7 @@ import static com.flower.utilities.FuturesTool.directExecutor;
 
 import com.flower.anno.event.EventType;
 import com.flower.conf.Transition;
-import com.flower.engine.runner.callfunc.EventFunctionCallState;
+import com.flower.engine.runner.callfunc.FunctionCallState;
 import com.flower.engine.runner.callfunc.FunctionCallContext;
 import com.flower.engine.runner.callfunc.FunctionCallUtil;
 import com.flower.engine.runner.state.ObjectStateAccess;
@@ -220,16 +220,15 @@ public class EventRunUtil {
       @Nullable Throwable flowException,
       @Nullable Executor invokeExecutor) {
     try {
-      EventFunctionCallState callState =
-          new EventFunctionCallState(flowStateAccess, eventProfileStateAccess);
-      return FunctionCallUtil.invokeEventFunction(
-          callState,
-          functionCallContext,
-          eventParametersProvider,
-          eventType,
-          transition,
-          flowException,
-          invokeExecutor);
+      FunctionCallState callState =
+          FunctionCallState.forEvent(
+              flowStateAccess,
+              eventProfileStateAccess,
+              eventParametersProvider,
+              eventType,
+              transition,
+              flowException);
+      return FunctionCallUtil.invokeEventFunction(callState, functionCallContext, invokeExecutor);
     } catch (Throwable t) {
       return CompletableFuture.failedFuture(t);
     }

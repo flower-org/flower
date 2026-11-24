@@ -1,16 +1,12 @@
 package com.flower.engine.runner.callfunc;
 
-import com.flower.anno.event.EventType;
 import com.flower.anno.params.common.Output;
 import com.flower.conf.FactoryOfFlowTypeFactories;
-import com.flower.conf.FlowId;
-import com.flower.conf.Transition;
 import com.flower.engine.function.FlowerInOutPrm;
 import com.flower.engine.function.FlowerOutPrm;
 import com.flower.engine.function.FlowerRetValOrException;
 import com.flower.engine.function.FunctionCallParameter;
 import com.flower.engine.function.ParameterType;
-import com.flower.engine.runner.event.EventParametersProvider;
 import com.flower.engine.runner.state.StateAccess;
 import com.flower.engine.runner.step.InternalTransition;
 import com.flower.utilities.FuturesTool;
@@ -24,536 +20,169 @@ import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 
 public class FunctionCallUtil {
-  // ---------------- STEP FUNCTION ----------------
+  // ---------------- INVOCATION ----------------
 
   public static CompletableFuture<?> invokeStepFunction(
-          FlowId flowId, StepFunctionCallState callState, FunctionCallContext callContext)
-      throws Exception {
-    // 1) Get Function parameters from Flow State
-    List<Object> functionCallParameters =
-        getStepParametersFromFlowState(flowId, callState, callContext);
+      FunctionCallState callState, FunctionCallContext callContext) {
+    return invokeFunction(callState, callContext, null);
+  }
 
-    try {
-      // 2) Call function
-      CompletableFuture<?> functionFuture =
-          rawInvokeFunction(callContext.function, functionCallParameters);
+  /** Transit, TransitOnException and StepAndTransit functions. */
+  @SuppressWarnings("unchecked")
+  public static CompletableFuture<InternalTransition> invokeTransitFunction(
+      FunctionCallState callState, FunctionCallContext callContext) {
+    // No extra stage to cast: their return type (Transition) is validated at initialization
+    return (CompletableFuture<InternalTransition>)
+        (CompletableFuture<?>) invokeFunction(callState, callContext, null);
+  }
 
-      // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(functionFuture,
-          functionReturnValue ->
-              updateState(
-                  callState.stateAccess,
-                  callState.returnValueToFlowParameterName,
-                  callContext.functionParameters,
-                  functionCallParameters,
-                  functionReturnValue,
-                  callContext.getFlowStepInfo(),
-                  false),
-          Throwable.class,
-          t -> {
+  /**
+   * Calls an Event function.
+   *
+   * @param invokeExecutor if not null, the function itself is called on this executor; otherwise
+   *     it's called on the current thread. Parameters are always read on the current thread, so
+   *     they reflect the state at the time of the event.
+   */
+  @SuppressWarnings("unchecked")
+  public static CompletableFuture<Void> invokeEventFunction(
+      FunctionCallState callState,
+      FunctionCallContext callContext,
+      @Nullable Executor invokeExecutor) {
+    // No extra stage to discard the return value: Event functions return void, and the result
+    // value is never read
+    return (CompletableFuture<Void>)
+        (CompletableFuture<?>) invokeFunction(callState, callContext, invokeExecutor);
+  }
+
+  /**
+   * Calls a function: resolves its parameters, calls it, then updates state with its @Out / @InOut
+   * parameters (and return value, if bound to a state field). If the function fails, state is updated
+   * partially and the returned future fails.
+   *
+   * @return future of the function's return value
+   */
+  static CompletableFuture<Object> invokeFunction(
+      FunctionCallState callState,
+      FunctionCallContext callContext,
+      @Nullable Executor invokeExecutor) {
+    // 1) Get Function parameters from State
+    List<Object> functionCallParameters = resolveParameters(callState, callContext);
+
+    // 2) Call function: on invokeExecutor if set (lets synchronous functions run concurrently),
+    // otherwise directly on the current thread.
+    CompletableFuture<?> functionFuture;
+    if (invokeExecutor != null) {
+      functionFuture =
+          FuturesTool.transformAsync(
+              CompletableFuture.completedFuture(null),
+              void_ ->
+                  FuturesTool.callAsync(
+                      () -> rawInvokeFunction(callContext.function, functionCallParameters)),
+              invokeExecutor);
+    } else {
+      try {
+        functionFuture = rawInvokeFunction(callContext.function, functionCallParameters);
+      } catch (Throwable t) {
+        functionFuture = CompletableFuture.failedFuture(t);
+      }
+    }
+
+    // 3) Update State with Output parameters
+    return FuturesTool.tryCatchAsync(
+        functionFuture,
+        functionReturnValue ->
             updateState(
                 callState.stateAccess,
                 callState.returnValueToFlowParameterName,
                 callContext.functionParameters,
                 functionCallParameters,
-                null,
-                callContext.getFlowStepInfo(),
-                true);
-            return CompletableFuture.failedFuture(t);
-          },
-          FuturesTool.directExecutor());
-    } catch(Throwable t) {
-      updateState(
-          callState.stateAccess,
-          callState.returnValueToFlowParameterName,
-          callContext.functionParameters,
-          functionCallParameters,
-          null,
-          callContext.getFlowStepInfo(),
-          true);
-      throw t;
-    }
-  }
-
-  static List<Object> getStepParametersFromFlowState(
-      FlowId flowId, StepFunctionCallState callState, FunctionCallContext functionCallContext) {
-    String flowStepInfo = functionCallContext.getFlowStepInfo();
-    List<Object> parameters = new ArrayList<>();
-    for (FunctionCallParameter callParameter : functionCallContext.functionParameters) {
-      ParameterType parameterType = callParameter.getFunctionParameterType();
-      switch (parameterType) {
-        case IN:
-        case OUT:
-        case IN_OUT:
-          parameters.add(getInOutParameter(callState.stateAccess, callParameter, flowStepInfo));
-          break;
-        case EXEC:
-        case FLOW_REPO:
-          parameters.add(callParameter.getSpecialObject());
-          break;
-        case EVENT_BUS:
-          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
-          parameters.add(Preconditions.checkNotNull(callState.eventBus));
-          break;
-        case CHILD_FLOW_FACTORY_REF:
-          parameters.add(
-              ((FactoryOfFlowTypeFactories) Preconditions.checkNotNull(callParameter.getSpecialObject())).getFactory(flowId));
-          break;
-        case TRANSIT_IN_RET: // Transit-only
-        case STEP_REF: // Transit-only
-        case TERMINAL: // Transit-only
-        case IN_FROM_FLOW: // Event-only
-        case FLOW_INFO: // Event-only
-        case STEP_INFO: // Event-only
-        case TRANSITION_INFO: // Event-only
-        case EVENT_INFO: // Event-only
-        case FLOW_EXCEPTION: // Event-only
-          throw new IllegalStateException(
-              String.format(
-                  flowStepInfo + " Fatal: Function parameter type is not supported in step functions: [%s]. FlowField [%s] FunctionPrm [%s]",
-                  parameterType,
-                  callParameter.getStateFieldName(),
-                  callParameter.getFunctionParameterName()));
-      }
-    }
-    return parameters;
-  }
-
-  // ---------------- TRANSIT FUNCTION ----------------
-
-  public static CompletableFuture<InternalTransition> invokeTransitFunctionOnException(
-      TransitFunctionExceptionCallState callState, FunctionCallContext callContext)
-      throws Exception {
-    // 1) Get Function parameters from Flow State
-    List<Object> functionParameterObjects =
-        getTransitParametersFromFlowState(callState, callContext);
-
-    try {
-      // 2) Call function
-      CompletableFuture<?> functionFuture =
-          rawInvokeFunction(callContext.function, functionParameterObjects);
-
-      // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(
-          functionFuture,
-          functionReturnValue ->
-              updateTransitionState(
-                  callState.stateAccess,
-                  callContext.functionParameters,
-                  functionParameterObjects,
-                  (InternalTransition) functionReturnValue,
-                  callContext.getFlowStepInfo(),
-                  false),
-          Throwable.class,
-          t -> {
-            updateTransitionState(
-                callState.stateAccess,
-                callContext.functionParameters,
-                functionParameterObjects,
-                null,
-                callContext.getFlowStepInfo(),
-                true);
-            return CompletableFuture.failedFuture(t);
-          },
-          FuturesTool.directExecutor());
-    } catch(Throwable t) {
-      updateTransitionState(
-          callState.stateAccess,
-          callContext.functionParameters,
-          functionParameterObjects,
-          null,
-          callContext.getFlowStepInfo(),
-          true);
-      throw t;
-    }
-  }
-
-  public static CompletableFuture<InternalTransition> invokeTransitFunction(
-      TransitFunctionCallState callState, FunctionCallContext callContext) throws Exception {
-    // 1) Get Function parameters from Flow State
-    List<Object> functionParameterObjects =
-        getTransitParametersFromFlowState(callState, callContext);
-
-    try {
-      // 2) Call function
-      CompletableFuture<?> functionFuture =
-          rawInvokeFunction(callContext.function, functionParameterObjects);
-
-      // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(
-          functionFuture,
-          functionReturnValue ->
-              updateTransitionState(
-                  callState.stateAccess,
-                  callContext.functionParameters,
-                  functionParameterObjects,
-                  (InternalTransition) functionReturnValue,
-                  callContext.getFlowStepInfo(),
-                  false),
-          Throwable.class,
-          t -> {
-            updateTransitionState(
-                callState.stateAccess,
-                callContext.functionParameters,
-                functionParameterObjects,
-                null,
-                callContext.getFlowStepInfo(),
-                true);
-            return CompletableFuture.failedFuture(t);
-          },
-          FuturesTool.directExecutor());
-    } catch(Throwable t) {
-      updateTransitionState(
-          callState.stateAccess,
-          callContext.functionParameters,
-          functionParameterObjects,
-          null,
-          callContext.getFlowStepInfo(),
-          true);
-      throw t;
-    }
-  }
-
-  static List<Object> getTransitParametersFromFlowState(
-      TransitFunctionCallState callState, FunctionCallContext functionCallContext) {
-    String flowStepInfo = functionCallContext.getFlowStepInfo();
-    List<Object> parameters = new ArrayList<>();
-    for (FunctionCallParameter callParameter : functionCallContext.functionParameters) {
-      ParameterType parameterType = callParameter.getFunctionParameterType();
-      switch (parameterType) {
-        case IN:
-        case OUT:
-        case IN_OUT:
-          parameters.add(getInOutParameter(callState.stateAccess, callParameter, flowStepInfo));
-          break;
-        case EXEC:
-        case STEP_REF:
-        case TERMINAL:
-          parameters.add(callParameter.getSpecialObject());
-          break;
-        case EVENT_BUS:
-          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
-          parameters.add(Preconditions.checkNotNull(callState.eventBus));
-          break;
-        case TRANSIT_IN_RET:
-          parameters.add(callState.previousReturnValue);
-          break;
-        case TRANSIT_IN_RET_OR_EXCEPTION:
-          parameters.add(new FlowerRetValOrException<>(callState.previousReturnValue));
-          break;
-        case CHILD_FLOW_FACTORY_REF: // Step-only
-        case IN_FROM_FLOW: // Event-only
-        case FLOW_INFO: // Event-only
-        case STEP_INFO: // Event-only
-          // case TRANSITIONER_INFO: // Event-only
-        case TRANSITION_INFO: // Event-only
-        case EVENT_INFO: // Event-only
-        case FLOW_EXCEPTION: // Event-only
-        case FLOW_REPO: // Event-only
-          //        case RUNNING_TIME_STATS: // Event-only
-          throw new IllegalStateException(
-              String.format(
-                  flowStepInfo + " Fatal: Function parameter type is not supported in transit functions: [%s]. FlowField [%s] FunctionPrm [%s]",
-                  parameterType,
-                  callParameter.getStateFieldName(),
-                  callParameter.getFunctionParameterName()));
-      }
-    }
-    return parameters;
-  }
-
-  static List<Object> getTransitParametersFromFlowState(
-      TransitFunctionExceptionCallState callState, FunctionCallContext functionCallContext) {
-    String flowStepInfo = functionCallContext.getFlowStepInfo();
-    List<Object> parameters = new ArrayList<>();
-    for (FunctionCallParameter callParameter : functionCallContext.functionParameters) {
-      ParameterType parameterType = callParameter.getFunctionParameterType();
-      switch (parameterType) {
-        case IN:
-        case OUT:
-        case IN_OUT:
-          parameters.add(getInOutParameter(callState.stateAccess, callParameter, flowStepInfo));
-          break;
-        case EXEC:
-        case STEP_REF:
-        case TERMINAL:
-          parameters.add(callParameter.getSpecialObject());
-          break;
-        case EVENT_BUS:
-          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
-          parameters.add(Preconditions.checkNotNull(callState.eventBus));
-          break;
-        case TRANSIT_IN_RET_OR_EXCEPTION:
-          parameters.add(new FlowerRetValOrException<>(callState.stepFunctionException));
-          break;
-        case TRANSIT_IN_RET: // That's why transitioner can't have both TRANSIT_IN_RET and
-          // TRANSIT_IN_RET_OR_EXCEPTION
-        case CHILD_FLOW_FACTORY_REF: // Step-only
-        case IN_FROM_FLOW: // Event-only
-        case FLOW_INFO: // Event-only
-        case STEP_INFO: // Event-only
-          // case TRANSITIONER_INFO: // Event-only
-        case TRANSITION_INFO: // Event-only
-        case EVENT_INFO: // Event-only
-        case FLOW_EXCEPTION: // Event-only
-        case FLOW_REPO: // Event-only
-          //        case RUNNING_TIME_STATS: // Event-only
-          throw new IllegalStateException(
-              String.format(
-                  flowStepInfo + " Fatal: Function parameter type is not supported in transit functions: [%s]. FlowField [%s] FunctionPrm [%s]",
-                  parameterType,
-                  callParameter.getStateFieldName(),
-                  callParameter.getFunctionParameterName()));
-      }
-    }
-    return parameters;
-  }
-
-  // ---------------- STEP-AND-TRANSIT FUNCTION ----------------
-
-  public static CompletableFuture<InternalTransition> invokeStepAndTransitFunction(
-      FlowId flowId, StepAndTransitFunctionCallState callState, FunctionCallContext callContext)
-      throws Exception {
-    // 1) Get Function parameters from Flow State
-    List<Object> functionCallParameters =
-        getStepAndTransitParametersFromFlowState(flowId, callState, callContext);
-
-    try {
-    // 2) Call function
-    CompletableFuture<?> functionFuture =
-        rawInvokeFunction(callContext.function, functionCallParameters);
-
-    // 3) Update Flow state with Output parameters
-    return FuturesTool.tryCatchAsync(
-        functionFuture,
-        functionReturnValue ->
-            updateTransitionState(
-                callState.stateAccess,
-                callContext.functionParameters,
-                functionCallParameters,
-                (InternalTransition) functionReturnValue,
+                functionReturnValue,
                 callContext.getFlowStepInfo(),
                 false),
         Throwable.class,
         t -> {
-          updateTransitionState(
-              callState.stateAccess,
-              callContext.functionParameters,
-              functionCallParameters,
-              null,
-              callContext.getFlowStepInfo(),
-              true);
+          CompletableFuture<?> unusedPartialUpdate =
+              updateState(
+                  callState.stateAccess,
+                  callState.returnValueToFlowParameterName,
+                  callContext.functionParameters,
+                  functionCallParameters,
+                  null,
+                  callContext.getFlowStepInfo(),
+                  true);
           return CompletableFuture.failedFuture(t);
         },
         FuturesTool.directExecutor());
-    } catch(Throwable t) {
-      updateTransitionState(
-          callState.stateAccess,
-          callContext.functionParameters,
-          functionCallParameters,
-          null,
-          callContext.getFlowStepInfo(),
-          true);
-      throw t;
-    }
   }
 
-  static List<Object> getStepAndTransitParametersFromFlowState(
-      FlowId flowId,
-      StepAndTransitFunctionCallState callState,
-      FunctionCallContext functionCallContext) {
+  // ---------------- PARAMETERS ----------------
+
+  static List<Object> resolveParameters(
+      FunctionCallState callState, FunctionCallContext functionCallContext) {
     String flowStepInfo = functionCallContext.getFlowStepInfo();
     List<Object> parameters = new ArrayList<>();
     for (FunctionCallParameter callParameter : functionCallContext.functionParameters) {
       ParameterType parameterType = callParameter.getFunctionParameterType();
-      switch (parameterType) {
-        case IN:
-        case OUT:
-        case IN_OUT:
-          parameters.add(getInOutParameter(callState.stateAccess, callParameter, flowStepInfo));
-          break;
-        case EXEC:
-        case STEP_REF:
-        case TERMINAL:
-        case FLOW_REPO:
-          parameters.add(callParameter.getSpecialObject());
-          break;
-        case EVENT_BUS:
-          // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
-          parameters.add(Preconditions.checkNotNull(callState.eventBus));
-          break;
-        case CHILD_FLOW_FACTORY_REF:
-          parameters.add(
-              ((FactoryOfFlowTypeFactories) Preconditions.checkNotNull(callParameter.getSpecialObject())).getFactory(flowId));
-          break;
-        case TRANSIT_IN_RET: // Transit-only
-        case IN_FROM_FLOW: // Event-only
-        case FLOW_INFO: // Event-only
-        case STEP_INFO: // Event-only
-          // case TRANSITIONER_INFO: // Event-only
-        case TRANSITION_INFO: // Event-only
-        case EVENT_INFO: // Event-only
-        case FLOW_EXCEPTION: // Event-only
-          //        case RUNNING_TIME_STATS: // Event-only
-          throw new IllegalStateException(
-              String.format(
-                  flowStepInfo + " Fatal: Function parameter type is not supported in step-and-transit functions: [%s]. FlowField [%s] FunctionPrm [%s]",
-                  parameterType,
-                  callParameter.getStateFieldName(),
-                  callParameter.getFunctionParameterName()));
+      // Also validated at initialization, see FunctionRecord
+      if (!callState.kind.supports(parameterType)) {
+        throw new IllegalStateException(
+            String.format(
+                flowStepInfo + " Fatal: Function parameter type is not supported in %s functions: [%s]. FlowField [%s] FunctionPrm [%s]",
+                callState.kind.label,
+                parameterType,
+                callParameter.getStateFieldName(),
+                callParameter.getFunctionParameterName()));
       }
+      parameters.add(resolveParameter(callState, callParameter, flowStepInfo));
     }
     return parameters;
   }
 
-  // ---------------- EVENT FUNCTION ----------------
-
-  public static CompletableFuture<Void> invokeEventFunction(
-      EventFunctionCallState callState,
-      FunctionCallContext callContext,
-      EventParametersProvider eventParametersProvider,
-      EventType eventType,
-      @Nullable Transition transition,
-      @Nullable Throwable flowException) {
-    return invokeEventFunction(
-        callState,
-        callContext,
-        eventParametersProvider,
-        eventType,
-        transition,
-        flowException,
-        null);
-  }
-
-  /**
-   * @param invokeExecutor if not null, the function itself is called on this executor; otherwise
-   *     it's called on the current thread. Parameters are always read on the current thread, so
-   *     they reflect the state at the time of the event.
-   */
-  public static CompletableFuture<Void> invokeEventFunction(
-      EventFunctionCallState callState,
-      FunctionCallContext callContext,
-      EventParametersProvider eventParametersProvider,
-      EventType eventType,
-      @Nullable Transition transition,
-      @Nullable Throwable flowException,
-      @Nullable Executor invokeExecutor) {
-    // 1) Get Function parameters from Flow State
-    List<Object> functionCallParameters =
-        getEventParametersFromEventProfileAndFlowState(
-            callState, callContext, eventParametersProvider, eventType, transition, flowException);
-    try {
-      // 2) Call function: on invokeExecutor if set (lets synchronous functions run concurrently),
-      // otherwise directly on the current thread.
-      CompletableFuture<?> functionFuture;
-
-      if (invokeExecutor != null) {
-        functionFuture =
-            FuturesTool.transformAsync(
-                CompletableFuture.completedFuture(null),
-                void_ ->
-                    FuturesTool.callAsync(
-                        () -> rawInvokeFunction(callContext.function, functionCallParameters)),
-                invokeExecutor);
-      } else {
-        try {
-          functionFuture = rawInvokeFunction(callContext.function, functionCallParameters);
-        } catch (Throwable t) {
-          functionFuture = CompletableFuture.failedFuture(t);
+  @Nullable
+  static Object resolveParameter(
+      FunctionCallState callState, FunctionCallParameter callParameter, String flowStepInfo) {
+    switch (callParameter.getFunctionParameterType()) {
+      case IN:
+      case OUT:
+      case IN_OUT:
+        return getInOutParameter(callState.stateAccess, callParameter, flowStepInfo);
+      case IN_FROM_FLOW:
+        return getInOutParameter(
+            Preconditions.checkNotNull(callState.flowStateAccess), callParameter, flowStepInfo);
+      case EXEC:
+      case STEP_REF:
+      case TERMINAL:
+      case FLOW_REPO:
+        return callParameter.getSpecialObject();
+      case EVENT_BUS:
+        // Created for every Flow whose type has an @EventBus parameter, see FlowCallContext
+        return Preconditions.checkNotNull(callState.eventBus);
+      case CHILD_FLOW_FACTORY_REF:
+        return ((FactoryOfFlowTypeFactories)
+                Preconditions.checkNotNull(callParameter.getSpecialObject()))
+            .getFactory(Preconditions.checkNotNull(callState.flowId));
+      case TRANSIT_IN_RET:
+        return callState.stepReturnValue;
+      case TRANSIT_IN_RET_OR_EXCEPTION:
+        if (callState.kind == FunctionCallState.Kind.TRANSIT_ON_EXCEPTION) {
+          Throwable stepException = Preconditions.checkNotNull(callState.stepException);
+          return new FlowerRetValOrException<>(stepException);
+        } else {
+          Object stepReturnValue = callState.stepReturnValue;
+          return new FlowerRetValOrException<>(stepReturnValue);
         }
-      }
-
-      // 3) Update Flow state with Output parameters
-      return FuturesTool.tryCatchAsync(
-          functionFuture,
-          functionReturnValue ->
-              updateEventState(
-                  callState.flowStateAccess,
-                  callState.eventProfileStateAccess,
-                  callContext.functionParameters,
-                  functionCallParameters,
-                  functionReturnValue,
-                  callContext.getFlowStepInfo(),
-                  false),
-          Throwable.class,
-          t -> {
-            updateEventState(
-                callState.flowStateAccess,
-                callState.eventProfileStateAccess,
-                callContext.functionParameters,
-                functionCallParameters,
-                null,
-                callContext.getFlowStepInfo(),
-                true);
-            return CompletableFuture.failedFuture(t);
-          },
-          FuturesTool.directExecutor());
-    } catch(Throwable t) {
-      updateEventState(
-          callState.flowStateAccess,
-          callState.eventProfileStateAccess,
-          callContext.functionParameters,
-          functionCallParameters,
-          null,
-          callContext.getFlowStepInfo(),
-          true);
-      throw t;
+      case FLOW_INFO:
+        return Preconditions.checkNotNull(callState.eventParametersProvider).getFlowInfo();
+      case STEP_INFO:
+        return Preconditions.checkNotNull(callState.eventParametersProvider).getStepInfo();
+      case TRANSITION_INFO:
+        return callState.transition;
+      case EVENT_INFO:
+        return callState.eventType;
+      case FLOW_EXCEPTION:
+        return callState.flowException;
     }
-  }
-
-  static List<Object> getEventParametersFromEventProfileAndFlowState(
-      EventFunctionCallState callState,
-      FunctionCallContext functionCallContext,
-      EventParametersProvider eventParametersProvider,
-      EventType eventType,
-      @Nullable Transition transition,
-      @Nullable Throwable flowException) {
-    String flowStepInfo = functionCallContext.getFlowStepInfo();
-    List<Object> parameters = new ArrayList<>();
-    for (FunctionCallParameter callParameter : functionCallContext.functionParameters) {
-      ParameterType parameterType = callParameter.getFunctionParameterType();
-      switch (parameterType) {
-        case IN_FROM_FLOW:
-          parameters.add(getInOutParameter(callState.flowStateAccess, callParameter, flowStepInfo));
-          break;
-        case IN:
-        case OUT:
-        case IN_OUT:
-          parameters.add(getInOutParameter(callState.eventProfileStateAccess, callParameter, flowStepInfo));
-          break;
-        case EXEC:
-          parameters.add(callParameter.getSpecialObject());
-          break;
-        case FLOW_INFO:
-          parameters.add(eventParametersProvider.getFlowInfo());
-          break;
-        case STEP_INFO:
-          parameters.add(eventParametersProvider.getStepInfo());
-          break;
-        case TRANSITION_INFO:
-          parameters.add(transition);
-          break;
-        case EVENT_INFO:
-          parameters.add(eventType);
-          break;
-        case FLOW_EXCEPTION: // Event-only
-          parameters.add(flowException);
-          break;
-        case TRANSIT_IN_RET: // Transit-only
-        case STEP_REF: // Transit-only
-        case TERMINAL: // Transit-only
-        case CHILD_FLOW_FACTORY_REF: // Step-only
-        case FLOW_REPO: // Step-only
-        case EVENT_BUS: // Step/Transit-only
-          throw new IllegalStateException(
-              String.format(
-                  flowStepInfo + " Fatal: Function parameter type is not supported in event functions: [%s]. FlowField [%s] FunctionPrm [%s]",
-                  parameterType,
-                  callParameter.getStateFieldName(),
-                  callParameter.getFunctionParameterName()));
-      }
-    }
-    return parameters;
+    throw new IllegalStateException("Unknown parameter type " + callParameter.getFunctionParameterType());
   }
 
   // ---------------- COMMON ----------------
@@ -621,8 +250,14 @@ public class FunctionCallUtil {
     return retFuture;
   }
 
-  static CompletableFuture<?> updateState(
-      StateAccess flowStateAccess,
+  /**
+   * Updates {@code stateAccess} with @Out / @InOut parameters, once their futures (if any) are done,
+   * and with the return value if it's bound to a state field.
+   *
+   * @return future of {@code returnValue}
+   */
+  static CompletableFuture<Object> updateState(
+      StateAccess stateAccess,
       @Nullable String returnValueToFlowParameterName,
       List<FunctionCallParameter> functionParameters,
       List<Object> functionParameterObjects,
@@ -633,9 +268,8 @@ public class FunctionCallUtil {
         waitForOutParams(functionParameters, functionParameterObjects),
         void_ -> {
           try {
-            // Flow State
             updateState0(
-                flowStateAccess,
+                stateAccess,
                 returnValueToFlowParameterName,
                 functionParameters,
                 functionParameterObjects,
@@ -646,75 +280,6 @@ public class FunctionCallUtil {
             return CompletableFuture.failedFuture(e);
           }
           return CompletableFuture.completedFuture(returnValue);
-        },
-        FuturesTool.directExecutor());
-  }
-
-  static CompletableFuture<InternalTransition> updateTransitionState(
-      StateAccess flowStateAccess,
-      List<FunctionCallParameter> functionParameters,
-      List<Object> functionParameterObjects,
-      @Nullable InternalTransition transitionReturnValue,
-      String flowStepInfo,
-      boolean partial) {
-    return FuturesTool.transformAsync(
-        waitForOutParams(functionParameters, functionParameterObjects),
-        void_ -> {
-          try {
-            // Flow State
-            updateState0(
-                flowStateAccess,
-                null,
-                functionParameters,
-                functionParameterObjects,
-                transitionReturnValue,
-                flowStepInfo,
-                partial);
-          } catch (Exception e) {
-            return CompletableFuture.failedFuture(e);
-          }
-          return CompletableFuture.completedFuture(transitionReturnValue);
-        },
-        FuturesTool.directExecutor());
-  }
-
-  static CompletableFuture<Void> updateEventState(
-      StateAccess flowStateAccess,
-      StateAccess eventProfileStateAccess,
-      List<FunctionCallParameter> functionParameters,
-      List<Object> functionParameterObjects,
-      @Nullable Object returnValue,
-      String flowStepInfo,
-      boolean partial) {
-    return FuturesTool.transformAsync(
-        waitForOutParams(functionParameters, functionParameterObjects),
-        void_ -> {
-          try {
-            // Event Profile State
-            updateState0(
-                eventProfileStateAccess,
-                null,
-                functionParameters,
-                functionParameterObjects,
-                returnValue,
-                flowStepInfo,
-                partial);
-          } catch (Exception e) {
-            return CompletableFuture.failedFuture(e);
-          }
-
-          //TODO: I don't think this should be here, Event shouldn't be able to update flow state.
-          // commenting out for now.
-          // Update Flow State
-          /*updateState0(
-              flowStateAccess,
-              null,
-              functionParameters,
-              functionParameterObjects,
-              returnValue,
-              flowStepInfo,
-              partial);*/
-          return CompletableFuture.completedFuture(null);
         },
         FuturesTool.directExecutor());
   }

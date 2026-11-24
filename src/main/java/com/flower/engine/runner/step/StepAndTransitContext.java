@@ -8,7 +8,7 @@ import com.flower.conf.StepInfoPrm;
 import com.flower.engine.function.ParameterType;
 import com.flower.engine.runner.callfunc.FunctionCallContext;
 import com.flower.engine.runner.callfunc.FunctionCallUtil;
-import com.flower.engine.runner.callfunc.StepAndTransitFunctionCallState;
+import com.flower.engine.runner.callfunc.FunctionCallState;
 import com.flower.engine.runner.event.EventContext;
 import com.flower.engine.runner.event.EventParametersProvider;
 import com.flower.engine.runner.event.EventRunner;
@@ -79,8 +79,8 @@ public class StepAndTransitContext implements StepCallContext {
       @Nullable FlowEventBus eventBus) {
     ObjectStateAccess stateAccess = new ObjectStateAccess(flowState, flowStateAccessConfig);
 
-    StepAndTransitFunctionCallState callState =
-        new StepAndTransitFunctionCallState(stateAccess, eventBus);
+    FunctionCallState callState =
+        FunctionCallState.forStepAndTransit(flowId, stateAccess, eventBus);
 
     CompletableFuture<InternalTransition> stepAndTransitResult =
         FuturesTool.transformAsync(
@@ -89,8 +89,8 @@ public class StepAndTransitContext implements StepCallContext {
             void_ ->
                 FuturesTool.callAsync(
                     () ->
-                        FunctionCallUtil.invokeStepAndTransitFunction(
-                            flowId, callState, stepAndTransitFunctionCall)),
+                        FunctionCallUtil.invokeTransitFunction(
+                            callState, stepAndTransitFunctionCall)),
             directExecutor());
     CompletableFuture<InternalTransition> afterExec =
         FuturesTool.transformAsync(
