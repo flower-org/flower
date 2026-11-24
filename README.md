@@ -180,6 +180,23 @@ This annotation means that given Flow Field is a part of Flow's State and as suc
 
 What exactly "injected *into and out of*" means is explained in the section [Flow State parameters](#flow-state-parameters).
 
+### State field initialization (null-safety check)
+
+In `flower.initialize()` Flower checks, along every possible execution path of a Flow, that each `@In` / `@InOut` parameter that isn't `@Nullable` reads a State Field that is initialized at that point. For example, a Step that reads `@In Integer count` is rejected if there's a path to it on which `count` may still be `null`.
+
+A State Field is treated as initialized from the start, when the Flow Instance is created, if it's not `@Nullable` and:
+- it's `final` (e.g. `@State final String hello = "Hello";`), or
+- it has a primitive type (`int`, `long`, `boolean`, etc.), which can't be `null`, or
+- it's declared `@State(initialized = true)`.
+
+Otherwise, a State Field becomes initialized once a function on the path sets it through a mandatory `@Out` / `@InOut` parameter, or through `returnTo`.
+
+`@State(initialized = true)` is needed for non-final fields with an initializer, e.g. `@State(initialized = true) Integer count = 0;`, because Java reflection can't see field initializers. It's a declaration that every Flow Instance has the field set when it's created (by an initializer or by every constructor). The declaration is verified when the Flow starts: if the field is `null`, the Flow fails right away with a clear error, rather than somewhere mid-flight. It can't be combined with `@Nullable`.
+
+To read a field that may legitimately be `null`, use `@Nullable @In` or `@InOut NullableInOutPrm<...>` instead.
+
+The same rules apply to EventProfile state (see [Events and Event Concurrency](#events-and-event-concurrency)); its declarations are verified when the EventProfile instance is created for a Flow.
+
 
 ## Functions and parameters
 
@@ -368,17 +385,16 @@ An Event Profile is a class annotated with `@EventProfileContainer`, registered 
 
      1 |  @EventProfileContainer(name = "Metrics")
      2 |  public class MetricsProfile {
-     3 |    @State Integer stepCount;
+     3 |    @State(initialized = true) Integer stepCount = 0;
      4 |
      5 |    @EventFunction(types = EventType.BEFORE_STEP, concurrency = Concurrency.SYNCHRONIZED)
-     6 |    static void countStep(@InOut NullableInOutPrm<Integer> stepCount) {
-     7 |      Integer count = stepCount.getInValue();
-     8 |      stepCount.setOutValue(count == null ? 1 : count + 1);
-     9 |    }
-    10 |
-    11 |    @EventFunction(types = EventType.AFTER_FLOW)  // NON_BLOCKING by default
-    12 |    static void report(@Nullable @In Integer stepCount, @FlowInfo FlowInfoPrm flowInfo) { ... }
-    13 |  }
+     6 |    static void countStep(@InOut InOutPrm<Integer> stepCount) {
+     7 |      stepCount.setOutValue(stepCount.getInValue() + 1);
+     8 |    }
+     9 |
+    10 |    @EventFunction(types = EventType.AFTER_FLOW)  // NON_BLOCKING by default
+    11 |    static void report(@In Integer stepCount, @FlowInfo FlowInfoPrm flowInfo) { ... }
+    12 |  }
 
 Each Event Function has a `concurrency` that defines whether the Flow waits for it, and how it runs relative to other Event Functions:
 

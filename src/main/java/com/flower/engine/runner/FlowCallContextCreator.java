@@ -148,6 +148,7 @@ public class FlowCallContextCreator {
         stepCalls,
         firstStepName,
         eventContexts,
+        flowStateAccessConfig,
         scheduler);
   }
 
@@ -190,7 +191,7 @@ public class FlowCallContextCreator {
       StateAccessConfig flowStateAccessConfig) {
     Set<String> constructorInitializedFields = new HashSet<>();
     for (StateField fields : flowStateAccessConfig.stateFieldMap.values()) {
-      if (fields.isFinal && !fields.isNullable) {
+      if (fields.isInitializedOnCreation()) {
         constructorInitializedFields.add(fields.field.getName());
       }
     }
@@ -266,7 +267,8 @@ public class FlowCallContextCreator {
               stateFieldRecord.stateFieldClass,
               stateFieldRecord.stateField,
               stateFieldRecord.isFinal,
-              stateFieldRecord.isNullable));
+              stateFieldRecord.isNullable,
+              stateFieldRecord.isDeclaredInitialized));
 
     return new StateAccessConfig(stateParameterMap);
   }

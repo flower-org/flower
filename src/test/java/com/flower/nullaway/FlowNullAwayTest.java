@@ -217,10 +217,10 @@ public class FlowNullAwayTest {
 
 @FlowType(firstStep = "STEP")
 class FNA_UninitializedField {
-  @State int i;
+  @State Integer i;
 
   @SimpleStepFunction
-  static Transition STEP(@In int i, @Terminal Transition END) {
+  static Transition STEP(@In Integer i, @Terminal Transition END) {
     return END;
   }
 }
@@ -228,7 +228,7 @@ class FNA_UninitializedField {
 @FlowType(firstStep = "STEP")
 class FNA_UninitializedFieldInOut {
   @State
-  int i;
+  Integer i;
 
   @SimpleStepFunction
   static Transition STEP(@InOut InOutPrm<Integer> i, @Terminal Transition END) {
@@ -281,7 +281,7 @@ class FNA_InOutParameterInitializing {
 
 @FlowType(firstStep = "STEP")
 class FNA_OptionalOut_OutParameterNotInitializing {
-  @State int i;
+  @State Integer i;
 
   @SimpleStepFunction
   static Transition STEP(@Out(out = Output.OPTIONAL) OutPrm<Integer> i, @StepRef Transition STEP2) {
@@ -290,14 +290,14 @@ class FNA_OptionalOut_OutParameterNotInitializing {
   }
 
   @SimpleStepFunction
-  static Transition STEP2(@In int i, @Terminal Transition END) {
+  static Transition STEP2(@In Integer i, @Terminal Transition END) {
     return END;
   }
 }
 
 @FlowType(firstStep = "STEP")
 class FNA_OptionalOut_InOutParameterNotInitializing {
-  @State int i;
+  @State Integer i;
 
   @SimpleStepFunction
   static Transition STEP(
@@ -307,7 +307,7 @@ class FNA_OptionalOut_InOutParameterNotInitializing {
   }
 
   @SimpleStepFunction
-  static Transition STEP2(@In int i, @Terminal Transition END) {
+  static Transition STEP2(@In Integer i, @Terminal Transition END) {
     return END;
   }
 }
@@ -335,7 +335,7 @@ class FNA_ReturnToInitializing {
 
 @FlowType(firstStep = "STEP")
 class FNA_NullableReturnToNotInitializing {
-  @State int i;
+  @State Integer i;
 
   @StepFunction(transit = "TRANSIT", returnTo = "i")
   @Nullable
@@ -349,7 +349,7 @@ class FNA_NullableReturnToNotInitializing {
   }
 
   @SimpleStepFunction
-  static Transition STEP2(@In int i, @Terminal Transition END) {
+  static Transition STEP2(@In Integer i, @Terminal Transition END) {
     return END;
   }
 }
@@ -412,7 +412,7 @@ class FNA_InRetOrExceptionWorksWithNullableReturnValue {
 
 @FlowType(firstStep = "STEP")
 class FNA_InRetOrExceptionStepFunctionIsNotInitializing {
-  @State int i2;
+  @State Integer i2;
 
   @StepFunction(transit = "TRANSIT")
   @Nullable
@@ -423,7 +423,7 @@ class FNA_InRetOrExceptionStepFunctionIsNotInitializing {
 
   @TransitFunction
   static Transition TRANSIT(
-          @InRetOrException ReturnValueOrException<Integer> i, @In int i2, @Terminal Transition END) {
+          @InRetOrException ReturnValueOrException<Integer> i, @In Integer i2, @Terminal Transition END) {
     return END;
   }
 }

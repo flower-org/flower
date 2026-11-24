@@ -77,7 +77,8 @@ public class EventProfileContainerRecord extends ContainerRecord {
 
     Map<String, Boolean> stateFieldsInit = new HashMap<>();
     for (StateFieldRecord stateFieldRecord : state.values()) {
-      stateFieldsInit.put(stateFieldRecord.stateFieldName, stateFieldRecord.isFinal && !stateFieldRecord.isNullable);
+      stateFieldsInit.put(
+          stateFieldRecord.stateFieldName, stateFieldRecord.isInitializedOnCreation());
     }
 
     // Informational, in case this will be needed in future NullAway versions:

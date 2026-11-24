@@ -13,6 +13,7 @@ public class EventProfileForFlowTypeCallContext {
   final String eventProfileName;
   // TODO: add concurrency info
   final Map<EventType, EventFunctions> eventFunctionsByType;
+  final StateAccessConfig eventProfileStateAccessConfig;
 
   public EventProfileForFlowTypeCallContext(
       String eventProfileName,
@@ -22,6 +23,7 @@ public class EventProfileForFlowTypeCallContext {
       StateAccessConfig flowStateAccessConfig) {
     this.eventProfileName = eventProfileName;
     this.eventProfileContainerType = eventProfileContainerType;
+    this.eventProfileStateAccessConfig = eventProfileStateAccessConfig;
 
     this.eventFunctionsByType = new HashMap<>();
     for (Map.Entry<EventType, List<EventFunction>> entry : eventFunctionsByType.entrySet()) {
@@ -44,6 +46,10 @@ public class EventProfileForFlowTypeCallContext {
 
   public Class<?> getEventProfileContainerType() {
     return eventProfileContainerType;
+  }
+
+  public StateAccessConfig getEventProfileStateAccessConfig() {
+    return eventProfileStateAccessConfig;
   }
 
   public Map<EventType, EventFunctions> getEventFunctionsByType() {

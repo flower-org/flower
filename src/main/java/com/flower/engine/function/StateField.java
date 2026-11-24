@@ -9,13 +9,31 @@ public class StateField {
   public final Field field;
   public final boolean isFinal;
   public final boolean isNullable;
+  /** Declared as @State(initialized = true). */
+  public final boolean isDeclaredInitialized;
 
-  public StateField(Class<?> stateFieldClass, Field field, boolean isFinal, boolean isNullable) {
+  public StateField(
+      Class<?> stateFieldClass,
+      Field field,
+      boolean isFinal,
+      boolean isNullable,
+      boolean isDeclaredInitialized) {
     this.stateFieldClass = stateFieldClass;
     this.field = field;
     this.field.setAccessible(true);
     this.isFinal = isFinal;
     this.isNullable = isNullable;
+    this.isDeclaredInitialized = isDeclaredInitialized;
+  }
+
+  /** See {@code StateFieldRecord.isInitializedOnCreation()}. */
+  public boolean isInitializedOnCreation() {
+    return !isNullable && (isFinal || field.getType().isPrimitive() || isDeclaredInitialized);
+  }
+
+  /** Whether the field's @State(initialized = true) declaration must be verified on creation. */
+  public boolean mustBeVerifiedOnCreation() {
+    return isDeclaredInitialized && !field.getType().isPrimitive();
   }
 
   public Object getFieldValue(Object flowState) {

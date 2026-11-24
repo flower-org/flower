@@ -86,6 +86,9 @@ Validation - parameter doesn't exist (thrown NPE now)
 * Event function without binding
 +* @Out and @InOut parameters are only allowed in SYNCHRONIZED and FINALIZER Event Functions
 +    (rejected in NON_BLOCKING and BLOCKING)
++* @State(initialized = true) can't be combined with @Nullable; verified non-null when the Flow /
++    EventProfile instance is created (Flow fails otherwise). Final, primitive and initialized = true fields
++    are treated as initialized by the null-safety check
 +* @EventBus parameter must be of type FlowEventBus, and is only allowed in Step, Transit and StepAndTransit
 +    Functions (and Global Functions called from them), not in Event Functions
 

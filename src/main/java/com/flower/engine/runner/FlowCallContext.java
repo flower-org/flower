@@ -14,6 +14,7 @@ import com.flower.engine.runner.event.EventRunUtil;
 import com.flower.engine.runner.event.EventRunner;
 import com.flower.engine.runner.step.InternalTransition;
 import com.flower.engine.runner.step.StepCallContext;
+import com.flower.engine.runner.state.StateAccessConfig;
 import com.flower.eventbus.FlowEventBus;
 import com.google.common.base.Preconditions;
 import com.flower.utilities.FuturesTool;
@@ -41,6 +42,7 @@ public class FlowCallContext implements EventRunner {
   final ScheduledExecutorService scheduler;
   /** Whether any function of this Flow type takes an @EventBus parameter. */
   final boolean usesEventBus;
+  final StateAccessConfig flowStateAccessConfig;
 
   public FlowCallContext(
       String flowName,
@@ -48,8 +50,10 @@ public class FlowCallContext implements EventRunner {
       Map<String, StepCallContext> stepCalls,
       String firstStepName,
       Map<Class<?>, EventProfileForFlowTypeCallContext> eventContexts,
+      StateAccessConfig flowStateAccessConfig,
       ScheduledExecutorService scheduler) {
     this.flowName = flowName;
+    this.flowStateAccessConfig = flowStateAccessConfig;
     this.flowType = flowType;
     this.stepCalls = stepCalls;
     this.firstStepName = firstStepName;
@@ -65,6 +69,9 @@ public class FlowCallContext implements EventRunner {
 
   <T> FlowImpl<T> createFlow(FlowId id, T flowState)
       throws IllegalAccessException, InstantiationException, InvocationTargetException {
+    flowStateAccessConfig.verifyInitializedOnCreation(
+        flowState, String.format("Flow [%s]", flowName));
+
     Map<Class<?>, Object> eventProfileStates = new HashMap<>();
     for (EventProfileForFlowTypeCallContext eventContext : eventContexts.values()) {
       String eventProfileName = eventContext.getEventProfileName();
@@ -82,6 +89,11 @@ public class FlowCallContext implements EventRunner {
           throw new IllegalStateException("This error happens when EventProfile class doesn't have a default constructor, please add default constructor.", iae);
         }
       }
+      eventContext
+          .getEventProfileStateAccessConfig()
+          .verifyInitializedOnCreation(
+              Preconditions.checkNotNull(eventProfileStates.get(eventProfileContainerType)),
+              String.format("EventProfile [%s]", eventProfileName));
     }
 
     return new FlowImpl<>(

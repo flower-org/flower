@@ -540,6 +540,18 @@ public class FlowTypeRecord extends ContainerRecord {
         }*/
 
         if (stateFieldName.trim().equals("")) stateFieldName = field.getName();
+        if (annotation.initialized() && nullable != null) {
+          throw new IllegalStateException(
+              "State field can't be both @Nullable and @State(initialized = true). Field: ["
+                  + stateFieldName
+                  + "] "
+                  + entity
+                  + ": ["
+                  + entityName
+                  + "] class ["
+                  + flowType
+                  + "]");
+        }
         StateFieldRecord record =
             new StateFieldRecord(flowType, field, annotation, stateFieldName, isFinal, nullable != null);
 
