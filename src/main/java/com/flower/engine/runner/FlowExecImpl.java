@@ -40,11 +40,8 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   static final String END = "END([END])";
   static final String DIAGRAM_NAME = "flowchart";
 
-  static final String LINK_BEGIN = "--";
   static final String LINK_END = "-->";
-  static final String FLOW_FACTORY_LINK_BEGIN = "-.";
   static final String FLOW_FACTORY_LINK_END = ".->";
-  static final String FLOW_REPO_LINK_BEGIN = "-.";
   static final String FLOW_REPO_LINK_END = ".->";
 
   final FlowRunner flowRunner;
@@ -256,32 +253,37 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return className.substring(lastDotIndex + 1);
   }
 
+  /** Quoted Mermaid edge label, so spaces and punctuation in notes don't break parsing. */
+  static String label(String note) {
+    return "\"" + note.replace("\"", "#quot;") + "\"";
+  }
+
   String createPreFormattedLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
       return String.format("%s %s %s", left, LINK_END, right);
     }
-    return String.format("%s %s%s%s %s", left, LINK_BEGIN, note, LINK_END, right);
+    return String.format("%s %s|%s| %s", left, LINK_END, label(note), right);
   }
 
   String createLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
       return String.format("%s %s %s[[%s]]", left, LINK_END, right, right);
     }
-    return String.format("%s %s%s%s %s[[%s]]", left, LINK_BEGIN, note, LINK_END, right, right);
+    return String.format("%s %s|%s| %s[[%s]]", left, LINK_END, label(note), right, right);
   }
 
   String createFlowFactoryLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
       return String.format("%s %s %s>%s]", left, FLOW_FACTORY_LINK_END, right, right);
     }
-    return String.format("%s %s%s%s %s>%s]", left, FLOW_FACTORY_LINK_BEGIN, note, FLOW_FACTORY_LINK_END, right, right);
+    return String.format("%s %s|%s| %s>%s]", left, FLOW_FACTORY_LINK_END, label(note), right, right);
   }
 
   String createFlowRepoLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
       return String.format("%s %s %s{{%s}}", left, FLOW_REPO_LINK_END, right, right);
     }
-    return String.format("%s %s%s%s %s{{%s}}", left, FLOW_REPO_LINK_BEGIN, note, FLOW_REPO_LINK_END, right, right);
+    return String.format("%s %s|%s| %s{{%s}}", left, FLOW_REPO_LINK_END, label(note), right, right);
   }
 
   CompletableFuture<T> runEventsForLastStep(FlowImpl<T> flowInstance) {
