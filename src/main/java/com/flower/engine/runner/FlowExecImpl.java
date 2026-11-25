@@ -3,6 +3,7 @@ package com.flower.engine.runner;
 import static com.flower.utilities.FuturesTool.directExecutor;
 
 import com.flower.anno.event.EventType;
+import com.flower.anno.flow.FlowType;
 import com.flower.conf.FlowExec;
 import com.flower.conf.FlowExecCallback;
 import com.flower.conf.FlowFuture;
@@ -196,7 +197,9 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
       graphBuilder.append("- ").append(flowType.getSimpleName()).append("\n");
     }
     graphBuilder
-        .append("```mermaid\n" + DIAGRAM_NAME + "\n")
+        .append("```mermaid\n")
+        .append(createTitle(flowType))
+        .append(DIAGRAM_NAME + "\n")
         .append(BEGIN)
         .append('\n')
         .append(END)
@@ -256,6 +259,16 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   /** Quoted Mermaid edge label, so spaces and punctuation in notes don't break parsing. */
   static String label(String note) {
     return "\"" + note.replace("\"", "#quot;") + "\"";
+  }
+
+  /** Mermaid front matter with the Flow's note as title, empty if none. */
+  static String createTitle(Class<?> flowType) {
+    FlowType flowTypeAnnotation = flowType.getAnnotation(FlowType.class);
+    if (flowTypeAnnotation == null || StringUtils.isBlank(flowTypeAnnotation.note())) {
+      return "";
+    }
+    String title = flowTypeAnnotation.note().replace("\\", "\\\\").replace("\"", "\\\"");
+    return "---\ntitle: \"" + title + "\"\n---\n";
   }
 
   /** Step node; the note, if any, goes under the name. Edges refer to steps by bare id. */

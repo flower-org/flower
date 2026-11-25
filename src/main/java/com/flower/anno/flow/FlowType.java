@@ -37,4 +37,11 @@ public @interface FlowType {
    * Just as an example, not limited to this scenario.
    */
   boolean restartable() default false;
+
+  /**
+   * Optional: what the Flow does, shown as the title of the generated Mermaid diagram.
+   *
+   * @return Flow note
+   */
+  String note() default "";
 }
