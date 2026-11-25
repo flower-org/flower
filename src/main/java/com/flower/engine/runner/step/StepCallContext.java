@@ -16,6 +16,9 @@ import java.util.concurrent.Executor;
 public interface StepCallContext {
   StepInfoPrm getStepInfo();
 
+  /** @return the Step's note for diagrams, empty if none */
+  String getNote();
+
   List<InternalTransition> getTransitions();
 
   List<Pair<String, String>> getFlowFactories();

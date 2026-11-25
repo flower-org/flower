@@ -208,7 +208,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
       boolean isFirst = step.getStepInfo().isFirstStep();
       List<InternalTransition> transitions = step.getTransitions();
 
-      graphBuilder.append(stepName+"[["+stepName+"]]").append('\n');
+      graphBuilder.append(createNode(stepName, step.getNote())).append('\n');
       if (isFirst) {
         String link = createLink(BEGIN, stepName, null);
         if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
@@ -258,6 +258,14 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return "\"" + note.replace("\"", "#quot;") + "\"";
   }
 
+  /** Step node; the note, if any, goes under the name. Edges refer to steps by bare id. */
+  static String createNode(String stepName, @Nullable String note) {
+    if (StringUtils.isBlank(note)) {
+      return String.format("%s[[%s]]", stepName, stepName);
+    }
+    return String.format("%s[[\"%s<br/>%s\"]]", stepName, stepName, note.replace("\"", "#quot;"));
+  }
+
   String createPreFormattedLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
       return String.format("%s %s %s", left, LINK_END, right);
@@ -267,9 +275,9 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
 
   String createLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
-      return String.format("%s %s %s[[%s]]", left, LINK_END, right, right);
+      return String.format("%s %s %s", left, LINK_END, right);
     }
-    return String.format("%s %s|%s| %s[[%s]]", left, LINK_END, label(note), right, right);
+    return String.format("%s %s|%s| %s", left, LINK_END, label(note), right);
   }
 
   String createFlowFactoryLink(String left, String right, @Nullable String note) {

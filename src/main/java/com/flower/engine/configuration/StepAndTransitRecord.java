@@ -12,6 +12,7 @@ public class StepAndTransitRecord extends FunctionRecord {
   final SimpleStepFunction annotation;
   public final String stepName;
   public final boolean isFirstStep;
+  public final String note;
 
   public FunctionReturnValueRecord returnValue;
   public List<FunctionParameterRecord> functionSignature;
@@ -27,6 +28,7 @@ public class StepAndTransitRecord extends FunctionRecord {
     this.annotation = annotation;
     this.stepName = stepName;
     this.isFirstStep = isFirstStep;
+    this.note = annotation.note();
 
     returnValue = loadFunctionReturnValue(null, method);
     functionSignature = new ArrayList<>();

@@ -34,6 +34,7 @@ public class StepContext implements StepCallContext {
   final StateAccessConfig flowStateAccessConfig;
   final boolean isTransitionerCatching;
   final StepInfoPrm stepInfo;
+  final String note;
   final StepParameterInitProfile stepParameterInitProfile;
 
   boolean isTransitionerCatching(FunctionCallContext transitFunctionCall) {
@@ -53,7 +54,8 @@ public class StepContext implements StepCallContext {
       List<InternalTransition> transitions,
       boolean isFirstStep,
       List<Pair<String, String>> flowFactories,
-      List<Pair<String, String>> flowRepos
+      List<Pair<String, String>> flowRepos,
+      String note
   ) {
     this.stepFunctionCall = stepFunctionCall;
     this.transitFunctionCall = transitFunctionCall;
@@ -61,6 +63,7 @@ public class StepContext implements StepCallContext {
     this.flowStateAccessConfig = flowStateAccessConfig;
     this.isTransitionerCatching = isTransitionerCatching(transitFunctionCall);
     this.stepInfo = new StepInfo(stepName, transitName, isFirstStep, false);
+    this.note = note;
     this.transitions = transitions;
     this.flowFactories = flowFactories;
     this.flowRepos = flowRepos;
@@ -180,6 +183,11 @@ public class StepContext implements StepCallContext {
   @Override
   public StepInfoPrm getStepInfo() {
     return stepInfo;
+  }
+
+  @Override
+  public String getNote() {
+    return note;
   }
 
   @Override

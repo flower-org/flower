@@ -258,7 +258,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepRecord.note);
   }
 
   // Step function, Transitioner call
@@ -324,7 +325,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepRecord.note);
   }
 
   // Step function, Transitioner reference
@@ -389,7 +391,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepRecord.note);
   }
 
   // Step call, Transitioner function
@@ -455,7 +458,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepCallRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepCallRecord.note);
   }
 
   // Step call, Transitioner call
@@ -522,7 +526,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepCallRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepCallRecord.note);
   }
 
   // Step call, Transitioner reference
@@ -588,7 +593,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepCallRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepCallRecord.note);
   }
 
   // ----------- Steps combined with Transitioners -----------
@@ -629,7 +635,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepAndTransitRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepAndTransitRecord.note);
   }
 
   public StepAndTransitContext createStepAndTransitCallContext(
@@ -669,7 +676,8 @@ public class StepCallContextCreator {
         stepRefPrms,
         stepAndTransitCallRecord.isFirstStep,
         flowFactories,
-        flowRepos);
+        flowRepos,
+        stepAndTransitCallRecord.note);
   }
 
   // ----------- Event Handler Functions -----------

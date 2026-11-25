@@ -14,6 +14,7 @@ public class StepAndTransitCallRecord extends FunctionRecord {
   public final Class<?> globalFunctionContainer;
   public final String globalFunctionName;
   public final boolean isFirstStep;
+  public final String note;
 
   public FunctionReturnValueRecord returnValueOverride;
   public List<FunctionParameterRecord> stepParameterOverrides;
@@ -31,6 +32,7 @@ public class StepAndTransitCallRecord extends FunctionRecord {
     this.globalFunctionContainer = annotation.globalFunctionContainer();
     this.globalFunctionName = annotation.globalFunctionName();
     this.isFirstStep = isFirstStep;
+    this.note = annotation.note();
 
     returnValueOverride = loadFunctionReturnValue(null, method);
     stepParameterOverrides = new ArrayList<>();

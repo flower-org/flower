@@ -21,4 +21,11 @@ public @interface SimpleStepFunction {
    * @return Step name
    */
   String name() default "";
+
+  /**
+   * Optional: what the Step does, shown under its name in the generated Mermaid diagram.
+   *
+   * @return Step note
+   */
+  String note() default "";
 }

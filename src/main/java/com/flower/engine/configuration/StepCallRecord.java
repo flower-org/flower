@@ -18,6 +18,7 @@ public class StepCallRecord extends StepFunctionRecord {
   public final String globalTransitionerName;
   public final String returnTo;
   public final boolean isFirstStep;
+  public final String note;
 
   public FunctionReturnValueRecord returnValueOverride;
   public List<FunctionParameterRecord> stepParameterOverrides;
@@ -42,6 +43,7 @@ public class StepCallRecord extends StepFunctionRecord {
     }
     this.returnTo = Strings.emptyToNull(annotation.returnTo());
     this.isFirstStep = isFirstStep;
+    this.note = annotation.note();
 
     returnValueOverride = loadFunctionReturnValue(flowType, method);
     stepParameterOverrides = new ArrayList<>();

@@ -40,4 +40,11 @@ public @interface StepCall {
    * @return Parameter passing - return value output
    */
   String returnTo() default "";
+
+  /**
+   * Optional: what the Step does, shown under its name in the generated Mermaid diagram.
+   *
+   * @return Step note
+   */
+  String note() default "";
 }

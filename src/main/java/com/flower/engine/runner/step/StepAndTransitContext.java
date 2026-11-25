@@ -28,6 +28,7 @@ public class StepAndTransitContext implements StepCallContext {
   final StateAccessConfig flowStateAccessConfig;
 
   final StepInfoPrm stepInfo;
+  final String note;
 
   final List<InternalTransition> transitions;
   final List<Pair<String, String>> flowFactories;
@@ -41,11 +42,13 @@ public class StepAndTransitContext implements StepCallContext {
       List<InternalTransition> transitions,
       boolean isFirstStep,
       List<Pair<String, String>> flowFactories,
-      List<Pair<String, String>> flowRepos) {
+      List<Pair<String, String>> flowRepos,
+      String note) {
     this.stepAndTransitFunctionCall = stepAndTransitFunctionCall;
     this.flowStateAccessConfig = flowStateAccessConfig;
     // exec is the same as transit
     this.stepInfo = new StepInfo(stepName, stepName, isFirstStep, true);
+    this.note = note;
     this.transitions = transitions;
     this.flowFactories = flowFactories;
     this.flowRepos = flowRepos;
@@ -56,6 +59,11 @@ public class StepAndTransitContext implements StepCallContext {
   @Override
   public StepInfoPrm getStepInfo() {
     return stepInfo;
+  }
+
+  @Override
+  public String getNote() {
+    return note;
   }
 
   @Override

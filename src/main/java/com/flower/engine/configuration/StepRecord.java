@@ -16,6 +16,7 @@ public class StepRecord extends StepFunctionRecord {
   public final String globalTransitionerName;
   public final String returnTo;
   public final boolean isFirstStep;
+  public final String note;
 
   public FunctionReturnValueRecord returnValue;
   public List<FunctionParameterRecord> functionSignature;
@@ -43,6 +44,7 @@ public class StepRecord extends StepFunctionRecord {
 
     this.returnTo = Strings.emptyToNull(annotation.returnTo());
     this.isFirstStep = isFirstStep;
+    this.note = annotation.note();
 
     returnValue = loadFunctionReturnValue(flowType, method);
     functionSignature = new ArrayList<>();
