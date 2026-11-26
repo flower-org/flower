@@ -28,6 +28,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -229,12 +230,22 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
         if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
       }
 
-      for (InternalTransition transition : transitions) {
-        if (transition.isTerminal()) {
-          String link = createPreFormattedLink(stepName, END, transitionLabel(options, transition));
+      if (options.combineEdges()) {
+        // Target -> labels of all transitions to it, in declaration order
+        Map<String, List<String>> combined = new LinkedHashMap<>();
+        for (InternalTransition transition : transitions) {
+          List<String> labels = combined.computeIfAbsent(transitionTarget(transition), t -> new ArrayList<>());
+          String label = transitionLabel(options, transition);
+          if (label != null && !labels.contains(label)) { labels.add(label); }
+        }
+        for (Map.Entry<String, List<String>> target : combined.entrySet()) {
+          String label = target.getValue().isEmpty() ? null : String.join("<br/>", target.getValue());
+          String link = createLink(stepName, target.getKey(), label);
           if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
-        } else {
-          String link = createLink(stepName, Preconditions.checkNotNull(transition.getStepName()), transitionLabel(options, transition));
+        }
+      } else {
+        for (InternalTransition transition : transitions) {
+          String link = createLink(stepName, transitionTarget(transition), transitionLabel(options, transition));
           if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
         }
       }
@@ -287,6 +298,10 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     }
     String title = flowTypeAnnotation.note().replace("\\", "\\\\").replace("\"", "\\\"");
     return "---\ntitle: \"" + title + "\"\n---\n";
+  }
+
+  static String transitionTarget(InternalTransition transition) {
+    return transition.isTerminal() ? END : Preconditions.checkNotNull(transition.getStepName());
   }
 
   static @Nullable String edgeNote(MermaidOptions options, @Nullable String note) {
@@ -389,13 +404,6 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     String text = "<b>" + name + "</b>"
         + (StringUtils.isBlank(note) ? "" : "<br/>" + italic(wrap(options, note)).replace("\"", "#quot;"));
     return String.format("EventProfile_%s[/\"%s\"/]", containerType.getSimpleName(), text);
-  }
-
-  String createPreFormattedLink(String left, String right, @Nullable String note) {
-    if (StringUtils.isBlank(note)) {
-      return String.format("%s %s %s", left, LINK_END, right);
-    }
-    return String.format("%s %s|%s| %s", left, LINK_END, label(note), right);
   }
 
   String createLink(String left, String right, @Nullable String note) {

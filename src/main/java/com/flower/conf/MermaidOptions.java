@@ -9,6 +9,7 @@ public final class MermaidOptions {
 
   final boolean edgeNotes;
   final boolean edgeNames;
+  final boolean combineEdges;
   final boolean stepNotes;
   final boolean flowNote;
   final boolean eventProfiles;
@@ -19,6 +20,7 @@ public final class MermaidOptions {
   MermaidOptions(Builder builder) {
     this.edgeNotes = builder.edgeNotes;
     this.edgeNames = builder.edgeNames;
+    this.combineEdges = builder.combineEdges;
     this.stepNotes = builder.stepNotes;
     this.flowNote = builder.flowNote;
     this.eventProfiles = builder.eventProfiles;
@@ -42,6 +44,14 @@ public final class MermaidOptions {
    */
   public boolean edgeNames() {
     return edgeNames;
+  }
+
+  /**
+   * @return whether transitions between the same two Steps (or a Step and END) share one edge, with their labels
+   *     on separate lines; otherwise each transition gets an edge of its own
+   */
+  public boolean combineEdges() {
+    return combineEdges;
   }
 
   /** @return Step notes under Step names */
@@ -80,6 +90,7 @@ public final class MermaidOptions {
   public static final class Builder {
     boolean edgeNotes = true;
     boolean edgeNames = true;
+    boolean combineEdges = true;
     boolean stepNotes = true;
     boolean flowNote = true;
     boolean eventProfiles = true;
@@ -96,6 +107,11 @@ public final class MermaidOptions {
 
     public Builder edgeNames(boolean edgeNames) {
       this.edgeNames = edgeNames;
+      return this;
+    }
+
+    public Builder combineEdges(boolean combineEdges) {
+      this.combineEdges = combineEdges;
       return this;
     }
 
