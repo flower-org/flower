@@ -231,10 +231,10 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
 
       for (InternalTransition transition : transitions) {
         if (transition.isTerminal()) {
-          String link = createPreFormattedLink(stepName, END, edgeNote(options, transition.getNote()));
+          String link = createPreFormattedLink(stepName, END, transitionLabel(options, transition));
           if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
         } else {
-          String link = createLink(stepName, Preconditions.checkNotNull(transition.getStepName()), edgeNote(options, transition.getNote()));
+          String link = createLink(stepName, Preconditions.checkNotNull(transition.getStepName()), transitionLabel(options, transition));
           if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
         }
       }
@@ -291,6 +291,24 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
 
   static @Nullable String edgeNote(MermaidOptions options, @Nullable String note) {
     return options.edgeNotes() && StringUtils.isNotBlank(note) ? italic(wrap(options, note)) : null;
+  }
+
+  /** Transition label: "name: <i>note</i>", or whichever of the two is present and enabled. */
+  static @Nullable String transitionLabel(MermaidOptions options, InternalTransition transition) {
+    String name = options.edgeNames() ? StringUtils.trimToNull(transition.getParameterName()) : null;
+    String note = options.edgeNotes() ? StringUtils.trimToNull(transition.getNote()) : null;
+    if (name == null) {
+      return note == null ? null : italic(wrap(options, note));
+    }
+    if (note == null) {
+      return name;
+    }
+    // Wrapped as a whole, so the name stays on the first line; only the note part is italic
+    String wrapped = wrap(options, name + ": " + note);
+    int split = name.length() + 1;
+    String rest = wrapped.substring(split);
+    String separator = rest.startsWith("<br/>") ? "<br/>" : " ";
+    return wrapped.substring(0, split) + separator + italic(rest.substring(separator.length()));
   }
 
   /** Notes are comments: italic, to tell them apart from names (bold) and State access (plain). */

@@ -27,7 +27,7 @@ public class StepRefOrTerminalParameterCreator extends ParameterCreator {
   StepRefOrTerminalParameterCreator() {}
 
   InternalTransition getStepRefObject(String flowName, String stepName, String parameterName, String note) {
-    return getStepRef(flowName, StringUtils.defaultIfEmpty(stepName, parameterName), note);
+    return TransitionImpl.getStepTransition(StringUtils.defaultIfEmpty(stepName, parameterName), note, parameterName);
   }
 
   @Override
@@ -83,7 +83,7 @@ public class StepRefOrTerminalParameterCreator extends ParameterCreator {
         specialObject = stepRef;
       } else {
         functionParameterType = ParameterType.TERMINAL;
-        InternalTransition terminalStepRef = getTerminalStepRef(terminalAnnotation == null ? null : terminalAnnotation.note());
+        InternalTransition terminalStepRef = TransitionImpl.getTerminalTransition(terminalAnnotation == null ? null : terminalAnnotation.note(), parameterName);
         stepRefPrms.add(terminalStepRef);
         specialObject = terminalStepRef;
       }
@@ -109,7 +109,7 @@ public class StepRefOrTerminalParameterCreator extends ParameterCreator {
         specialObject = stepRef;
       } else {
         functionParameterType = ParameterType.TERMINAL;
-        InternalTransition terminalStepRef = getTerminalStepRef(terminalOverrideAnnotation == null ? null : terminalOverrideAnnotation.note());
+        InternalTransition terminalStepRef = TransitionImpl.getTerminalTransition(terminalOverrideAnnotation == null ? null : terminalOverrideAnnotation.note(), parameterName);
         stepRefPrms.add(terminalStepRef);
         specialObject = terminalStepRef;
       }
@@ -139,7 +139,7 @@ public class StepRefOrTerminalParameterCreator extends ParameterCreator {
         specialObject = stepRef;
       } else {
         functionParameterType = ParameterType.TERMINAL;
-        InternalTransition terminalStepRef = getTerminalStepRef(transitTerminalPrmAnnotation == null ? null : transitTerminalPrmAnnotation.note());
+        InternalTransition terminalStepRef = TransitionImpl.getTerminalTransition(transitTerminalPrmAnnotation == null ? null : transitTerminalPrmAnnotation.note(), parameterName);
         stepRefPrms.add(terminalStepRef);
         specialObject = terminalStepRef;
       }

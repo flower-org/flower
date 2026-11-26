@@ -8,6 +8,7 @@ public final class MermaidOptions {
   public static final MermaidOptions DEFAULT = builder().build();
 
   final boolean edgeNotes;
+  final boolean edgeNames;
   final boolean stepNotes;
   final boolean flowNote;
   final boolean eventProfiles;
@@ -17,6 +18,7 @@ public final class MermaidOptions {
 
   MermaidOptions(Builder builder) {
     this.edgeNotes = builder.edgeNotes;
+    this.edgeNames = builder.edgeNames;
     this.stepNotes = builder.stepNotes;
     this.flowNote = builder.flowNote;
     this.eventProfiles = builder.eventProfiles;
@@ -32,6 +34,14 @@ public final class MermaidOptions {
   /** @return labels on transitions, Flow factory and Flow repo links ({@code note} of {@code @StepRef}, {@code @Terminal} etc.) */
   public boolean edgeNotes() {
     return edgeNotes;
+  }
+
+  /**
+   * @return Transition parameter names on transitions: "name: note" with {@link #edgeNotes()}, or just the name
+   *     if there's no note
+   */
+  public boolean edgeNames() {
+    return edgeNames;
   }
 
   /** @return Step notes under Step names */
@@ -69,6 +79,7 @@ public final class MermaidOptions {
 
   public static final class Builder {
     boolean edgeNotes = true;
+    boolean edgeNames = true;
     boolean stepNotes = true;
     boolean flowNote = true;
     boolean eventProfiles = true;
@@ -80,6 +91,11 @@ public final class MermaidOptions {
 
     public Builder edgeNotes(boolean edgeNotes) {
       this.edgeNotes = edgeNotes;
+      return this;
+    }
+
+    public Builder edgeNames(boolean edgeNames) {
+      this.edgeNames = edgeNames;
       return this;
     }
 

@@ -9,20 +9,23 @@ public class TransitionImpl implements InternalTransition {
   private final boolean isTerminal;
   @Nullable private final String stepName;
   @Nullable private final String note;
+  @Nullable private final String parameterName;
   @Nullable private final Duration delay;
 
-  private TransitionImpl(String stepName, @Nullable String note) {
+  private TransitionImpl(String stepName, @Nullable String note, @Nullable String parameterName) {
     this.isTerminal = false;
     this.stepName = stepName;
     this.delay = null;
     this.note = note;
+    this.parameterName = parameterName;
   }
 
-  private TransitionImpl(@Nullable String note) {
+  private TransitionImpl(@Nullable String note, @Nullable String parameterName) {
     this.isTerminal = true;
     this.stepName = null;
     this.delay = null;
     this.note = note;
+    this.parameterName = parameterName;
   }
 
   private TransitionImpl(TransitionImpl clone, @Nullable Duration newDelay) {
@@ -30,6 +33,7 @@ public class TransitionImpl implements InternalTransition {
     this.isTerminal = clone.isTerminal;
     this.delay = newDelay;
     this.note = clone.getNote();
+    this.parameterName = clone.getParameterName();
   }
 
   @Nullable
@@ -46,6 +50,12 @@ public class TransitionImpl implements InternalTransition {
   @Nullable
   @Override
   public String getNote() { return note; }
+
+  @Nullable
+  @Override
+  public String getParameterName() {
+    return parameterName;
+  }
 
   @Nullable
   @Override
@@ -75,10 +85,19 @@ public class TransitionImpl implements InternalTransition {
   // because all steps are effectively static - created once on init and reused in form of
   // parameter's SpecialObjects
   public static InternalTransition getStepTransition(String stepName, @Nullable String note) {
-    return new TransitionImpl(stepName, note);
+    return getStepTransition(stepName, note, null);
+  }
+
+  public static InternalTransition getStepTransition(
+      String stepName, @Nullable String note, @Nullable String parameterName) {
+    return new TransitionImpl(stepName, note, parameterName);
   }
 
   public static InternalTransition getTerminalTransition(@Nullable String note) {
-    return new TransitionImpl(note);
+    return getTerminalTransition(note, null);
+  }
+
+  public static InternalTransition getTerminalTransition(@Nullable String note, @Nullable String parameterName) {
+    return new TransitionImpl(note, parameterName);
   }
 }
