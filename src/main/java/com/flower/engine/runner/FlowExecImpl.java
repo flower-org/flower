@@ -218,7 +218,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
 
       List<String> nodeLines = new ArrayList<>();
       if (options.stepNotes() && StringUtils.isNotBlank(step.getNote())) {
-        nodeLines.add(wrap(options, step.getNote()));
+        nodeLines.add(italic(wrap(options, step.getNote())));
       }
       if (options.stateAccess()) {
         nodeLines.addAll(stateAccessLines(step.getStateReads(), step.getStateWrites()));
@@ -290,7 +290,12 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   }
 
   static @Nullable String edgeNote(MermaidOptions options, @Nullable String note) {
-    return options.edgeNotes() && note != null ? wrap(options, note) : null;
+    return options.edgeNotes() && StringUtils.isNotBlank(note) ? italic(wrap(options, note)) : null;
+  }
+
+  /** Notes are comments: italic, to tell them apart from names (bold) and State access (plain). */
+  static String italic(String text) {
+    return "<i>" + text + "</i>";
   }
 
   /**
@@ -348,13 +353,13 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return lines;
   }
 
-  /** Step node; extra lines (note, State access) go under the name. Edges refer to steps by bare id. */
+  /** Step node, name in bold; extra lines (note, State access) go under it. Edges refer to steps by bare id. */
   static String createNode(String stepName, List<String> lines) {
-    if (lines.isEmpty()) {
-      return String.format("%s[[%s]]", stepName, stepName);
+    StringBuilder text = new StringBuilder("<b>").append(stepName).append("</b>");
+    for (String line : lines) {
+      text.append("<br/>").append(line.replace("\"", "#quot;"));
     }
-    String text = stepName + "<br/>" + String.join("<br/>", lines);
-    return String.format("%s[[\"%s\"]]", stepName, text.replace("\"", "#quot;"));
+    return String.format("%s[[\"%s\"]]", stepName, text);
   }
 
   /** Event Profile as a side node (not linked: its Events fire around every Step), with its note, if any. */
@@ -363,8 +368,9 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     String name = getSimpleClassName(profile.getEventProfileName());
     EventProfileContainer container = containerType.getAnnotation(EventProfileContainer.class);
     String note = container == null ? "" : container.note();
-    String text = StringUtils.isBlank(note) ? name : name + "<br/>" + wrap(options, note);
-    return String.format("EventProfile_%s[/\"%s\"/]", containerType.getSimpleName(), text.replace("\"", "#quot;"));
+    String text = "<b>" + name + "</b>"
+        + (StringUtils.isBlank(note) ? "" : "<br/>" + italic(wrap(options, note)).replace("\"", "#quot;"));
+    return String.format("EventProfile_%s[/\"%s\"/]", containerType.getSimpleName(), text);
   }
 
   String createPreFormattedLink(String left, String right, @Nullable String note) {
