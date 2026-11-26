@@ -2,7 +2,8 @@ package com.flower.conf;
 
 /**
  * What goes into a generated Mermaid diagram, besides Steps and transitions. Everything is on by
- * default except {@link Builder#stateAccess(boolean) state access}, which is useful but noisy.
+ * default except {@link Builder#stateAccess(boolean) state access}, which is useful but noisy. Notes
+ * are wrapped at 24 characters by default.
  */
 public final class MermaidOptions {
   public static final MermaidOptions DEFAULT = builder().build();
@@ -12,6 +13,8 @@ public final class MermaidOptions {
   final boolean flowNote;
   final boolean eventProfiles;
   final boolean stateAccess;
+  final boolean wrapNotes;
+  final int wrapWidth;
 
   MermaidOptions(Builder builder) {
     this.edgeNotes = builder.edgeNotes;
@@ -19,6 +22,8 @@ public final class MermaidOptions {
     this.flowNote = builder.flowNote;
     this.eventProfiles = builder.eventProfiles;
     this.stateAccess = builder.stateAccess;
+    this.wrapNotes = builder.wrapNotes;
+    this.wrapWidth = builder.wrapWidth;
   }
 
   public static Builder builder() {
@@ -50,12 +55,27 @@ public final class MermaidOptions {
     return stateAccess;
   }
 
+  /**
+   * @return whether edge, Step and Event Profile notes are wrapped at {@link #wrapWidth()}, so labels
+   *     stay compact. A line break in a note ({@code \n}) always starts a new line.
+   */
+  public boolean wrapNotes() {
+    return wrapNotes;
+  }
+
+  /** @return line width, in characters, notes are wrapped at; a longer word gets a line of its own */
+  public int wrapWidth() {
+    return wrapWidth;
+  }
+
   public static final class Builder {
     boolean edgeNotes = true;
     boolean stepNotes = true;
     boolean flowNote = true;
     boolean eventProfiles = true;
     boolean stateAccess = false;
+    boolean wrapNotes = true;
+    int wrapWidth = 24;
 
     Builder() {}
 
@@ -81,6 +101,19 @@ public final class MermaidOptions {
 
     public Builder stateAccess(boolean stateAccess) {
       this.stateAccess = stateAccess;
+      return this;
+    }
+
+    public Builder wrapNotes(boolean wrapNotes) {
+      this.wrapNotes = wrapNotes;
+      return this;
+    }
+
+    public Builder wrapWidth(int wrapWidth) {
+      if (wrapWidth < 1) {
+        throw new IllegalArgumentException("wrapWidth must be positive: " + wrapWidth);
+      }
+      this.wrapWidth = wrapWidth;
       return this;
     }
 

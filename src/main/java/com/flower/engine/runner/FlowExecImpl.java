@@ -218,7 +218,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
 
       List<String> nodeLines = new ArrayList<>();
       if (options.stepNotes() && StringUtils.isNotBlank(step.getNote())) {
-        nodeLines.add(step.getNote());
+        nodeLines.add(wrap(options, step.getNote()));
       }
       if (options.stateAccess()) {
         nodeLines.addAll(stateAccessLines(step.getStateReads(), step.getStateWrites()));
@@ -252,7 +252,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     if (options.eventProfiles()) {
       flowCallContext.eventContexts.values().stream()
           .sorted(Comparator.comparing(EventProfileForFlowTypeCallContext::getEventProfileName))
-          .forEach(profile -> graphBuilder.append(createEventProfileNode(profile)).append('\n'));
+          .forEach(profile -> graphBuilder.append(createEventProfileNode(profile, options)).append('\n'));
     }
 
     graphBuilder.append("```");
@@ -290,7 +290,50 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   }
 
   static @Nullable String edgeNote(MermaidOptions options, @Nullable String note) {
-    return options.edgeNotes() ? note : null;
+    return options.edgeNotes() && note != null ? wrap(options, note) : null;
+  }
+
+  /**
+   * Note with {@code <br/>} line breaks: at each {@code \n}, and, if wrapping is on, at word boundaries.
+   * Lines are balanced: as few as {@code wrapWidth} allows, as even in length as possible.
+   */
+  static String wrap(MermaidOptions options, String note) {
+    List<String> lines = new ArrayList<>();
+    for (String paragraph : note.split("\n", -1)) {
+      if (!options.wrapNotes()) {
+        lines.add(paragraph);
+        continue;
+      }
+      String[] words = paragraph.trim().split("\\s+");
+      List<String> wrapped = wrapWords(words, options.wrapWidth());
+      for (int width = 1; width < options.wrapWidth(); width++) {
+        List<String> narrower = wrapWords(words, width);
+        if (narrower.size() <= wrapped.size()) {
+          wrapped = narrower;
+          break;
+        }
+      }
+      lines.addAll(wrapped);
+    }
+    return String.join("<br/>", lines);
+  }
+
+  /** Greedy word wrap; a word longer than {@code width} gets a line of its own. */
+  static List<String> wrapWords(String[] words, int width) {
+    List<String> lines = new ArrayList<>();
+    StringBuilder line = new StringBuilder();
+    for (String word : words) {
+      if (line.length() > 0 && line.length() + 1 + word.length() > width) {
+        lines.add(line.toString());
+        line.setLength(0);
+      }
+      if (line.length() > 0) {
+        line.append(' ');
+      }
+      line.append(word);
+    }
+    lines.add(line.toString());
+    return lines;
   }
 
   /** "in: ...", "out: ...", "inout: ..." lines for the State fields a Step reads and writes; empty groups are left out. */
@@ -315,12 +358,12 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   }
 
   /** Event Profile as a side node (not linked: its Events fire around every Step), with its note, if any. */
-  static String createEventProfileNode(EventProfileForFlowTypeCallContext profile) {
+  static String createEventProfileNode(EventProfileForFlowTypeCallContext profile, MermaidOptions options) {
     Class<?> containerType = profile.getEventProfileContainerType();
     String name = getSimpleClassName(profile.getEventProfileName());
     EventProfileContainer container = containerType.getAnnotation(EventProfileContainer.class);
     String note = container == null ? "" : container.note();
-    String text = StringUtils.isBlank(note) ? name : name + "<br/>" + note;
+    String text = StringUtils.isBlank(note) ? name : name + "<br/>" + wrap(options, note);
     return String.format("EventProfile_%s[/\"%s\"/]", containerType.getSimpleName(), text.replace("\"", "#quot;"));
   }
 
