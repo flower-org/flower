@@ -12,22 +12,22 @@ import static org.junit.jupiter.api.Assertions.*;
 class PushToPollAdapterTest {
     final PushToPollAdapter<String> adapter = new PushToPollAdapter<>(3);
 
-    static List<String> values(CompletableFuture<List<PushToPollAdapter.Update<String>>> future) {
-        return future.getNow(List.of()).stream().map(PushToPollAdapter.Update::value).toList();
+    static List<String> values(CompletableFuture<List<Pollable.Update<String>>> future) {
+        return future.getNow(List.of()).stream().map(Pollable.Update::value).toList();
     }
 
     @Test
     void returnsBufferedUpdatesNewerThanLastUpdate() {
         adapter.accept("a");
         adapter.accept("b");
-        List<PushToPollAdapter.Update<String>> all = adapter.poll(0).join();
-        assertEquals(List.of("a", "b"), all.stream().map(PushToPollAdapter.Update::value).toList());
+        List<Pollable.Update<String>> all = adapter.poll(0).join();
+        assertEquals(List.of("a", "b"), all.stream().map(Pollable.Update::value).toList());
         assertEquals(List.of("b"), values(adapter.poll(all.get(0).updateNo())));
     }
 
     @Test
     void pendingPollCompletesOnNextValue() {
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> pending = adapter.poll(0);
+        CompletableFuture<List<Pollable.Update<String>>> pending = adapter.poll(0);
         assertFalse(pending.isDone());
         adapter.accept("a");
         assertEquals(List.of("a"), values(pending));
@@ -37,8 +37,8 @@ class PushToPollAdapterTest {
     void upToDateAndAheadWaitersBehaveCorrectly() {
         adapter.accept("a");
         long no = adapter.poll(0).join().get(0).updateNo();
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> upToDate = adapter.poll(no);
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> ahead = adapter.poll(no + 100);
+        CompletableFuture<List<Pollable.Update<String>>> upToDate = adapter.poll(no);
+        CompletableFuture<List<Pollable.Update<String>>> ahead = adapter.poll(no + 100);
         assertFalse(upToDate.isDone());
         adapter.accept("b");
         assertEquals(List.of("b"), values(upToDate));
@@ -50,8 +50,8 @@ class PushToPollAdapterTest {
         for (String v : List.of("a", "b", "c", "d", "e")) {
             adapter.accept(v);
         }
-        List<PushToPollAdapter.Update<String>> all = adapter.poll(0).join();
-        assertEquals(List.of("c", "d", "e"), all.stream().map(PushToPollAdapter.Update::value).toList());
+        List<Pollable.Update<String>> all = adapter.poll(0).join();
+        assertEquals(List.of("c", "d", "e"), all.stream().map(Pollable.Update::value).toList());
         assertEquals(3, all.get(0).updateNo());
     }
 
@@ -71,15 +71,15 @@ class PushToPollAdapterTest {
 
     @Test
     void ignoresNulls() {
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> pending = adapter.poll(0);
+        CompletableFuture<List<Pollable.Update<String>>> pending = adapter.poll(0);
         adapter.accept(null);
         assertFalse(pending.isDone());
     }
 
     @Test
     void cancelledPollDoesNotBreakOthers() {
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> cancelled = adapter.poll(0);
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> live = adapter.poll(0);
+        CompletableFuture<List<Pollable.Update<String>>> cancelled = adapter.poll(0);
+        CompletableFuture<List<Pollable.Update<String>>> live = adapter.poll(0);
         assertTrue(cancelled.cancel(false));
         assertEquals(1, adapter.waiterCount());
         adapter.accept("a");
@@ -91,7 +91,7 @@ class PushToPollAdapterTest {
         for (int i = 0; i < 100; i++) {
             assertTrue(adapter.poll(0).cancel(false));
         }
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> timed = adapter.poll(0).orTimeout(1, TimeUnit.MILLISECONDS);
+        CompletableFuture<List<Pollable.Update<String>>> timed = adapter.poll(0).orTimeout(1, TimeUnit.MILLISECONDS);
         assertThrows(Exception.class, timed::join);
         assertEquals(0, adapter.waiterCount());
     }
@@ -99,7 +99,7 @@ class PushToPollAdapterTest {
     @Test
     void closeCompletesPendingAndIgnoresLaterValues() {
         adapter.accept("a");
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> pending = adapter.poll(1);
+        CompletableFuture<List<Pollable.Update<String>>> pending = adapter.poll(1);
         adapter.close();
         assertEquals(List.of(), pending.join());
         adapter.accept("b");
@@ -116,9 +116,9 @@ class PushToPollAdapterTest {
     void numberingStartsAfterStartAfterAndWrapsCorrectly() {
         PushToPollAdapter<String> offset = new PushToPollAdapter<>(3, 100);
         assertEquals(100, offset.lastUpdateNo());
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> pending = offset.poll(0);
+        CompletableFuture<List<Pollable.Update<String>>> pending = offset.poll(0);
         offset.accept("a");
-        assertEquals(List.of(101L), pending.join().stream().map(PushToPollAdapter.Update::updateNo).toList());
+        assertEquals(List.of(101L), pending.join().stream().map(Pollable.Update::updateNo).toList());
 
         for (String v : List.of("b", "c", "d", "e")) {
             offset.accept(v);
@@ -152,7 +152,7 @@ class PushToPollAdapterTest {
         List<Integer> seen = new ArrayList<>();
         long last = 0;
         while (seen.size() < count) {
-            for (PushToPollAdapter.Update<Integer> update : big.poll(last).get(5, TimeUnit.SECONDS)) {
+            for (Pollable.Update<Integer> update : big.poll(last).get(5, TimeUnit.SECONDS)) {
                 assertTrue(update.updateNo() > last);
                 last = update.updateNo();
                 seen.add(update.value());

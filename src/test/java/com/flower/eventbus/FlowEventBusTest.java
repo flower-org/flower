@@ -142,8 +142,8 @@ class FlowEventBusTest {
         FlowEventBus loop = new FlowEventBus();
         PushToPollAdapter<String> btc = new PushToPollAdapter<>(10);
         PushToPollAdapter<String> eth = new PushToPollAdapter<>(10);
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> btcPoll = btc.poll(0);
-        CompletableFuture<List<PushToPollAdapter.Update<String>>> ethPoll = eth.poll(0);
+        CompletableFuture<List<Pollable.Update<String>>> btcPoll = btc.poll(0);
+        CompletableFuture<List<Pollable.Update<String>>> ethPoll = eth.poll(0);
         loop.register(btcPoll);
         loop.register(ethPoll);
 

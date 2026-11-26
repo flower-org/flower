@@ -26,9 +26,7 @@ import java.util.function.Consumer;
  *
  * <p>Subscription lifecycle is the caller's concern.
  */
-public final class PushToPollAdapter<V> implements Consumer<V>, AutoCloseable {
-    public record Update<V>(long updateNo, V value) {}
-
+public final class PushToPollAdapter<V> implements Pollable<V>, Consumer<V>, AutoCloseable {
     record Waiter<V>(long lastUpdateNo, CompletableFuture<List<Update<V>>> future) {}
 
     record Completion<V>(CompletableFuture<List<Update<V>>> future, List<Update<V>> updates) {}
@@ -104,6 +102,7 @@ public final class PushToPollAdapter<V> implements Consumer<V>, AutoCloseable {
      * future that completes with the next update(s). Pass {@code 0} to get everything buffered.
      * After {@link #close()}, completes with an empty list.
      */
+    @Override
     public CompletableFuture<List<Update<V>>> poll(long lastUpdate) {
         lock.lock();
         try {
