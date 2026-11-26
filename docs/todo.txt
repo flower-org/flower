@@ -8,6 +8,10 @@ Open
     - unreachable Steps, unused Transit Functions and Flow-local Event Functions;
     - duplicate transit override of the same parameter;
     - EventProfile without an accessible default constructor (currently fails only when a Flow is created);
+    - @InFromFlow naming no state field is silently null (InParameterCreator skips it), so renaming a Flow field
+      quietly disables the Event Function. Fail instead when the profile is listed in the Flow's @EventProfiles
+      (it claims to fit that Flow), unless the parameter is marked e.g. @InFromFlow(optional = true). Default
+      profiles (attached to every Flow) stay lenient;
     - warn about Flow state fields of special types (Transition, FlowFactoryPrm, FlowEventBus, ...).
 - Missing tests: final state field used as @Out / @InOut (check exists); wrong parameter annotation types on Calls.
 - Step references are strings, validated only at initialize(). Ideas, cheapest first:
