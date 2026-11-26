@@ -4,6 +4,7 @@ import com.flower.conf.FlowExec;
 import com.flower.conf.FlowFuture;
 import com.flower.conf.FlowId;
 import com.flower.conf.InternalFlowExec;
+import com.flower.conf.MermaidOptions;
 import com.flower.conf.StateSerializer;
 
 import javax.annotation.Nullable;
@@ -48,13 +49,22 @@ public class DynamicFlowExec implements InternalFlowExec {
     }
 
     public String buildMermaidGraph(Class<?> flowType) {
+        return buildMermaidGraph(flowType, MermaidOptions.DEFAULT);
+    }
+
+    public String buildMermaidGraph(Class<?> flowType, MermaidOptions options) {
         FlowExec flowExec = flowRunner.getFlowExec(flowType);
-        return flowExec.buildMermaidGraph(false);
+        return flowExec.buildMermaidGraph(false, options);
     }
 
     @Override
     public String buildMermaidGraph(boolean addHeader) {
         throw new UnsupportedOperationException("Method buildMermaidGraph() can't be implemented in DynamicFlowExec, use buildMermaidGraph(Class<?>)");
+    }
+
+    @Override
+    public String buildMermaidGraph(boolean addHeader, MermaidOptions options) {
+        throw new UnsupportedOperationException("Method buildMermaidGraph() can't be implemented in DynamicFlowExec, use buildMermaidGraph(Class<?>, MermaidOptions)");
     }
 
     @Override

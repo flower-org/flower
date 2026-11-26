@@ -19,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
+import java.util.Set;
 import javax.annotation.Nullable;
 import java.util.concurrent.Executor;
 
@@ -64,6 +65,16 @@ public class StepAndTransitContext implements StepCallContext {
   @Override
   public String getNote() {
     return note;
+  }
+
+  @Override
+  public Set<String> getStateReads() {
+    return StepCallContext.stateFields(List.of(stepAndTransitFunctionCall), false);
+  }
+
+  @Override
+  public Set<String> getStateWrites() {
+    return StepCallContext.stateFields(List.of(stepAndTransitFunctionCall), true);
   }
 
   @Override

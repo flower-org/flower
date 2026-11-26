@@ -10,6 +10,7 @@ import com.flower.conf.FlowExecCallback;
 import com.flower.conf.FlowFuture;
 import com.flower.conf.FlowId;
 import com.flower.conf.InternalFlowExec;
+import com.flower.conf.MermaidOptions;
 import com.flower.conf.StateSerializer;
 import com.flower.conf.StepInfoPrm;
 import com.flower.engine.FlowImpl;
@@ -24,6 +25,7 @@ import com.google.common.base.Preconditions;
 
 import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -192,7 +194,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
   }
 
   @Override
-  public String buildMermaidGraph(boolean addHeader) {
+  public String buildMermaidGraph(boolean addHeader, MermaidOptions options) {
     Set<String> existingLinks = new HashSet<>();
 
     StringBuilder graphBuilder = new StringBuilder();
@@ -201,7 +203,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     }
     graphBuilder
         .append("```mermaid\n")
-        .append(createTitle(flowType))
+        .append(options.flowNote() ? createTitle(flowType) : "")
         .append(DIAGRAM_NAME + "\n")
         .append(BEGIN)
         .append('\n')
@@ -214,7 +216,14 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
       boolean isFirst = step.getStepInfo().isFirstStep();
       List<InternalTransition> transitions = step.getTransitions();
 
-      graphBuilder.append(createNode(stepName, step.getNote())).append('\n');
+      List<String> nodeLines = new ArrayList<>();
+      if (options.stepNotes() && StringUtils.isNotBlank(step.getNote())) {
+        nodeLines.add(step.getNote());
+      }
+      if (options.stateAccess()) {
+        nodeLines.addAll(stateAccessLines(step.getStateReads(), step.getStateWrites()));
+      }
+      graphBuilder.append(createNode(stepName, nodeLines)).append('\n');
       if (isFirst) {
         String link = createLink(BEGIN, stepName, null);
         if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
@@ -222,27 +231,29 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
 
       for (InternalTransition transition : transitions) {
         if (transition.isTerminal()) {
-          String link = createPreFormattedLink(stepName, END, transition.getNote());
+          String link = createPreFormattedLink(stepName, END, edgeNote(options, transition.getNote()));
           if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
         } else {
-          String link = createLink(stepName, Preconditions.checkNotNull(transition.getStepName()), transition.getNote());
+          String link = createLink(stepName, Preconditions.checkNotNull(transition.getStepName()), edgeNote(options, transition.getNote()));
           if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
         }
       }
 
       for (Pair<String, String> flowFactory : step.getFlowFactories()) {
-          String link = createFlowFactoryLink(stepName, "Factory:" + getSimpleClassName(flowFactory.getKey()), flowFactory.getValue());
+          String link = createFlowFactoryLink(stepName, "Factory:" + getSimpleClassName(flowFactory.getKey()), edgeNote(options, flowFactory.getValue()));
           graphBuilder.append(link).append('\n');
       }
       for (Pair<String, String> flowRepo : step.getFlowRepos()) {
-          String link = createFlowRepoLink(stepName, "Repo:" + getSimpleClassName(flowRepo.getKey()), flowRepo.getValue());
+          String link = createFlowRepoLink(stepName, "Repo:" + getSimpleClassName(flowRepo.getKey()), edgeNote(options, flowRepo.getValue()));
           graphBuilder.append(link).append('\n');
       }
     }
 
-    flowCallContext.eventContexts.values().stream()
-        .sorted(Comparator.comparing(EventProfileForFlowTypeCallContext::getEventProfileName))
-        .forEach(profile -> graphBuilder.append(createEventProfileNode(profile)).append('\n'));
+    if (options.eventProfiles()) {
+      flowCallContext.eventContexts.values().stream()
+          .sorted(Comparator.comparing(EventProfileForFlowTypeCallContext::getEventProfileName))
+          .forEach(profile -> graphBuilder.append(createEventProfileNode(profile)).append('\n'));
+    }
 
     graphBuilder.append("```");
     if (addHeader) {
@@ -278,12 +289,29 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return "---\ntitle: \"" + title + "\"\n---\n";
   }
 
-  /** Step node; the note, if any, goes under the name. Edges refer to steps by bare id. */
-  static String createNode(String stepName, @Nullable String note) {
-    if (StringUtils.isBlank(note)) {
+  static @Nullable String edgeNote(MermaidOptions options, @Nullable String note) {
+    return options.edgeNotes() ? note : null;
+  }
+
+  /** "in: ...", "out: ...", "inout: ..." lines for the State fields a Step reads and writes; empty groups are left out. */
+  static List<String> stateAccessLines(Set<String> reads, Set<String> writes) {
+    List<String> in = reads.stream().filter(f -> !writes.contains(f)).toList();
+    List<String> out = writes.stream().filter(f -> !reads.contains(f)).toList();
+    List<String> inOut = reads.stream().filter(writes::contains).toList();
+    List<String> lines = new ArrayList<>();
+    if (!in.isEmpty()) { lines.add("in: " + String.join(", ", in)); }
+    if (!out.isEmpty()) { lines.add("out: " + String.join(", ", out)); }
+    if (!inOut.isEmpty()) { lines.add("inout: " + String.join(", ", inOut)); }
+    return lines;
+  }
+
+  /** Step node; extra lines (note, State access) go under the name. Edges refer to steps by bare id. */
+  static String createNode(String stepName, List<String> lines) {
+    if (lines.isEmpty()) {
       return String.format("%s[[%s]]", stepName, stepName);
     }
-    return String.format("%s[[\"%s<br/>%s\"]]", stepName, stepName, note.replace("\"", "#quot;"));
+    String text = stepName + "<br/>" + String.join("<br/>", lines);
+    return String.format("%s[[\"%s\"]]", stepName, text.replace("\"", "#quot;"));
   }
 
   /** Event Profile as a side node (not linked: its Events fire around every Step), with its note, if any. */
@@ -296,7 +324,7 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return String.format("EventProfile_%s[/\"%s\"/]", containerType.getSimpleName(), text.replace("\"", "#quot;"));
   }
 
-    String createPreFormattedLink(String left, String right, @Nullable String note) {
+  String createPreFormattedLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
       return String.format("%s %s %s", left, LINK_END, right);
     }

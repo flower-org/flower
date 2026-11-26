@@ -24,7 +24,12 @@ public interface FlowExec<T> {
 
   FlowFuture<T> runFlow(T flow, Duration startupDelay);
 
-  String buildMermaidGraph(boolean addHeader);
+  /** Mermaid diagram of the Flow, with {@link MermaidOptions#DEFAULT default} options. */
+  default String buildMermaidGraph(boolean addHeader) {
+    return buildMermaidGraph(addHeader, MermaidOptions.DEFAULT);
+  }
+
+  String buildMermaidGraph(boolean addHeader, MermaidOptions options);
 
   Class<T> getFlowType();
 

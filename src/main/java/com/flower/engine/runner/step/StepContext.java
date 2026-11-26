@@ -20,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
+import java.util.Set;
 import javax.annotation.Nullable;
 import java.util.concurrent.Executor;
 
@@ -188,6 +189,20 @@ public class StepContext implements StepCallContext {
   @Override
   public String getNote() {
     return note;
+  }
+
+  @Override
+  public Set<String> getStateReads() {
+    return StepCallContext.stateFields(List.of(stepFunctionCall, transitFunctionCall), false);
+  }
+
+  @Override
+  public Set<String> getStateWrites() {
+    Set<String> writes = StepCallContext.stateFields(List.of(stepFunctionCall, transitFunctionCall), true);
+    if (stepReturnValueToFlowParameterName != null) {
+      writes.add(stepReturnValueToFlowParameterName);
+    }
+    return writes;
   }
 
   @Override
