@@ -48,7 +48,7 @@ public final class MermaidOptions {
 
   /**
    * @return whether transitions between the same two Steps (or a Step and END) share one edge, with their labels
-   *     on separate lines; otherwise each transition gets an edge of its own
+   *     joined by " / "; otherwise each transition gets an edge of its own
    */
   public boolean combineEdges() {
     return combineEdges;
