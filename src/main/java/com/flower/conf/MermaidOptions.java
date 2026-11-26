@@ -2,8 +2,7 @@ package com.flower.conf;
 
 /**
  * What goes into a generated Mermaid diagram, besides Steps and transitions. Everything is on by
- * default except {@link Builder#stateAccess(boolean) state access}, which is useful but noisy. Notes
- * are wrapped at 24 characters by default.
+ * default; notes are wrapped at 24 characters.
  */
 public final class MermaidOptions {
   public static final MermaidOptions DEFAULT = builder().build();
@@ -73,7 +72,7 @@ public final class MermaidOptions {
     boolean stepNotes = true;
     boolean flowNote = true;
     boolean eventProfiles = true;
-    boolean stateAccess = false;
+    boolean stateAccess = true;
     boolean wrapNotes = true;
     int wrapWidth = 24;
 
