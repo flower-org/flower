@@ -26,11 +26,13 @@ import com.google.common.base.Preconditions;
 import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -232,15 +234,14 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
 
       if (options.combineEdges()) {
         // Target -> labels of all transitions to it, in declaration order
-        Map<String, List<String>> combined = new LinkedHashMap<>();
+        Map<String, List<List<List<Word>>>> combined = new LinkedHashMap<>();
         for (InternalTransition transition : transitions) {
-          List<String> labels = combined.computeIfAbsent(transitionTarget(transition), t -> new ArrayList<>());
-          String label = transitionLabel(options, transition);
-          if (label != null && !labels.contains(label)) { labels.add(label); }
+          List<List<List<Word>>> labels = combined.computeIfAbsent(transitionTarget(transition), t -> new ArrayList<>());
+          List<List<Word>> label = transitionWords(options, transition);
+          if (!label.isEmpty() && !labels.contains(label)) { labels.add(label); }
         }
-        for (Map.Entry<String, List<String>> target : combined.entrySet()) {
-          String label = target.getValue().isEmpty() ? null : String.join("<br/>", target.getValue());
-          String link = createLink(stepName, target.getKey(), label);
+        for (Map.Entry<String, List<List<List<Word>>>> target : combined.entrySet()) {
+          String link = createLink(stepName, target.getKey(), renderWords(options, joinLabels(target.getValue())));
           if (existingLinks.add(link)) { graphBuilder.append(link).append('\n'); }
         }
       } else {
@@ -308,22 +309,114 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return options.edgeNotes() && StringUtils.isNotBlank(note) ? italic(wrap(options, note)) : null;
   }
 
-  /** Transition label: "<b>name</b>: <i>note</i>", or whichever of the two is present and enabled. */
+  /** Transition label: "<b>name:</b> <i>note</i>", or whichever of the two is present and enabled. */
   static @Nullable String transitionLabel(MermaidOptions options, InternalTransition transition) {
+    return renderWords(options, transitionWords(options, transition));
+  }
+
+  /** Transition label as paragraphs of styled words, empty if there's nothing to show. */
+  static List<List<Word>> transitionWords(MermaidOptions options, InternalTransition transition) {
     String name = options.edgeNames() ? StringUtils.trimToNull(transition.getParameterName()) : null;
     String note = options.edgeNotes() ? StringUtils.trimToNull(transition.getNote()) : null;
-    if (name == null) {
-      return note == null ? null : italic(wrap(options, note));
+    List<List<Word>> paragraphs = new ArrayList<>();
+    if (note != null) {
+      for (String paragraph : note.split("\n", -1)) {
+        paragraphs.add(words(paragraph, "i"));
+      }
     }
-    if (note == null) {
-      return "<b>" + name + "</b>";
+    if (name != null) {
+      if (paragraphs.isEmpty()) {
+        paragraphs.add(new ArrayList<>());
+      }
+      paragraphs.get(0).add(0, new Word(note == null ? name : name + ":", "b"));
     }
-    // Wrapped as a whole, so the name stays on the first line; only the note part is italic
-    String wrapped = wrap(options, name + ": " + note);
-    int split = name.length() + 1;
-    String rest = wrapped.substring(split);
-    String separator = rest.startsWith("<br/>") ? "<br/>" : " ";
-    return "<b>" + name + "</b>:" + separator + italic(rest.substring(separator.length()));
+    return paragraphs;
+  }
+
+  /** Labels of one combined edge as a single text, joined by " / ", so they wrap together. */
+  static List<List<Word>> joinLabels(List<List<List<Word>>> labels) {
+    List<List<Word>> joined = new ArrayList<>();
+    for (List<List<Word>> label : labels) {
+      if (joined.isEmpty()) {
+        label.forEach(paragraph -> joined.add(new ArrayList<>(paragraph)));
+        continue;
+      }
+      List<Word> last = joined.get(joined.size() - 1);
+      last.add(new Word("/", null));
+      last.addAll(label.get(0));
+      label.subList(1, label.size()).forEach(paragraph -> joined.add(new ArrayList<>(paragraph)));
+    }
+    return joined;
+  }
+
+  static List<Word> words(String text, @Nullable String tag) {
+    List<Word> words = new ArrayList<>();
+    for (String word : text.trim().split("\\s+")) {
+      if (!word.isEmpty()) {
+        words.add(new Word(word, tag));
+      }
+    }
+    return words;
+  }
+
+  /**
+   * Paragraphs of styled words, wrapped like {@link #wrap}; each line opens and closes its own tags.
+   * @return null if there are no paragraphs
+   */
+  static @Nullable String renderWords(MermaidOptions options, List<List<Word>> paragraphs) {
+    if (paragraphs.isEmpty()) {
+      return null;
+    }
+    List<String> lines = new ArrayList<>();
+    for (List<Word> paragraph : paragraphs) {
+      int[] lengths = paragraph.stream().mapToInt(word -> word.text.length()).toArray();
+      int from = 0;
+      for (int count : wordsPerLine(options, lengths)) {
+        lines.add(renderLine(paragraph.subList(from, from + count)));
+        from += count;
+      }
+    }
+    return String.join("<br/>", lines);
+  }
+
+  /** Words joined by spaces, a tag around each run of words in the same style. */
+  static String renderLine(List<Word> words) {
+    StringBuilder line = new StringBuilder();
+    String open = null;
+    for (Word word : words) {
+      if (!Objects.equals(word.tag, open)) {
+        if (open != null) { line.append("</").append(open).append('>'); }
+        if (line.length() > 0) { line.append(' '); }
+        if (word.tag != null) { line.append('<').append(word.tag).append('>'); }
+        open = word.tag;
+      } else if (line.length() > 0) {
+        line.append(' ');
+      }
+      line.append(word.text);
+    }
+    if (open != null) { line.append("</").append(open).append('>'); }
+    return line.toString();
+  }
+
+  /** A label word, with the HTML tag it's wrapped in ({@code b}, {@code i}), or null for plain. */
+  static final class Word {
+    final String text;
+    final @Nullable String tag;
+
+    Word(String text, @Nullable String tag) {
+      this.text = text;
+      this.tag = tag;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      return o instanceof Word word && text.equals(word.text) && Objects.equals(tag, word.tag);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(text, tag);
+    }
   }
 
   /** Notes are comments: italic, to tell them apart from names (bold) and State access (plain). */
@@ -343,35 +436,46 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
         continue;
       }
       String[] words = paragraph.trim().split("\\s+");
-      List<String> wrapped = wrapWords(words, options.wrapWidth());
-      for (int width = 1; width < options.wrapWidth(); width++) {
-        List<String> narrower = wrapWords(words, width);
-        if (narrower.size() <= wrapped.size()) {
-          wrapped = narrower;
-          break;
-        }
+      int from = 0;
+      for (int count : wordsPerLine(options, Arrays.stream(words).mapToInt(String::length).toArray())) {
+        lines.add(String.join(" ", Arrays.asList(words).subList(from, from + count)));
+        from += count;
       }
-      lines.addAll(wrapped);
     }
     return String.join("<br/>", lines);
   }
 
-  /** Greedy word wrap; a word longer than {@code width} gets a line of its own. */
-  static List<String> wrapWords(String[] words, int width) {
-    List<String> lines = new ArrayList<>();
-    StringBuilder line = new StringBuilder();
-    for (String word : words) {
-      if (line.length() > 0 && line.length() + 1 + word.length() > width) {
-        lines.add(line.toString());
-        line.setLength(0);
-      }
-      if (line.length() > 0) {
-        line.append(' ');
-      }
-      line.append(word);
+  /** Words per line, balanced: as few lines as {@code wrapWidth} allows, as even in length as possible. */
+  static List<Integer> wordsPerLine(MermaidOptions options, int[] lengths) {
+    if (!options.wrapNotes()) {
+      return List.of(lengths.length);
     }
-    lines.add(line.toString());
-    return lines;
+    List<Integer> wrapped = wrapWords(lengths, options.wrapWidth());
+    for (int width = 1; width < options.wrapWidth(); width++) {
+      List<Integer> narrower = wrapWords(lengths, width);
+      if (narrower.size() <= wrapped.size()) {
+        return narrower;
+      }
+    }
+    return wrapped;
+  }
+
+  /** Greedy word wrap, words per line; a word longer than {@code width} gets a line of its own. */
+  static List<Integer> wrapWords(int[] lengths, int width) {
+    List<Integer> counts = new ArrayList<>();
+    int line = 0;
+    int count = 0;
+    for (int length : lengths) {
+      if (count > 0 && line + 1 + length > width) {
+        counts.add(count);
+        line = 0;
+        count = 0;
+      }
+      line += (count > 0 ? 1 : 0) + length;
+      count++;
+    }
+    counts.add(count);
+    return counts;
   }
 
   /** "in: ...", "out: ...", "inout: ..." lines for the State fields a Step reads and writes; empty groups are left out. */
