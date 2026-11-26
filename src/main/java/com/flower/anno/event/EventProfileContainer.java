@@ -19,4 +19,11 @@ public @interface EventProfileContainer {
 
   /** State Serializer */
   Class<?> serializer() default void.class;
+
+  /**
+   * Optional: what the Event Profile does, shown in its node in the generated Mermaid diagrams of Flows it's bound to.
+   *
+   * @return Event Profile note
+   */
+  String note() default "";
 }

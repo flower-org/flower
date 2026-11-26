@@ -2,6 +2,7 @@ package com.flower.engine.runner;
 
 import static com.flower.utilities.FuturesTool.directExecutor;
 
+import com.flower.anno.event.EventProfileContainer;
 import com.flower.anno.event.EventType;
 import com.flower.anno.flow.FlowType;
 import com.flower.conf.FlowExec;
@@ -13,6 +14,7 @@ import com.flower.conf.StateSerializer;
 import com.flower.conf.StepInfoPrm;
 import com.flower.engine.FlowImpl;
 import com.flower.engine.FlowerId;
+import com.flower.engine.runner.event.EventProfileForFlowTypeCallContext;
 import com.flower.engine.runner.step.InternalTransition;
 import com.flower.engine.runner.step.StepCallContext;
 import com.flower.utilities.FlowerException;
@@ -22,6 +24,7 @@ import com.google.common.base.Preconditions;
 
 import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -237,6 +240,10 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
       }
     }
 
+    flowCallContext.eventContexts.values().stream()
+        .sorted(Comparator.comparing(EventProfileForFlowTypeCallContext::getEventProfileName))
+        .forEach(profile -> graphBuilder.append(createEventProfileNode(profile)).append('\n'));
+
     graphBuilder.append("```");
     if (addHeader) {
       graphBuilder.append("\n");
@@ -279,7 +286,17 @@ public class FlowExecImpl<T> implements InternalFlowExec<T> {
     return String.format("%s[[\"%s<br/>%s\"]]", stepName, stepName, note.replace("\"", "#quot;"));
   }
 
-  String createPreFormattedLink(String left, String right, @Nullable String note) {
+  /** Event Profile as a side node (not linked: its Events fire around every Step), with its note, if any. */
+  static String createEventProfileNode(EventProfileForFlowTypeCallContext profile) {
+    Class<?> containerType = profile.getEventProfileContainerType();
+    String name = getSimpleClassName(profile.getEventProfileName());
+    EventProfileContainer container = containerType.getAnnotation(EventProfileContainer.class);
+    String note = container == null ? "" : container.note();
+    String text = StringUtils.isBlank(note) ? name : name + "<br/>" + note;
+    return String.format("EventProfile_%s[/\"%s\"/]", containerType.getSimpleName(), text.replace("\"", "#quot;"));
+  }
+
+    String createPreFormattedLink(String left, String right, @Nullable String note) {
     if (StringUtils.isBlank(note)) {
       return String.format("%s %s %s", left, LINK_END, right);
     }
